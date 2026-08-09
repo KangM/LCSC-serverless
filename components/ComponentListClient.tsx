@@ -214,9 +214,9 @@ export function ComponentListClient({
               </th>
               <th className="px-4 py-2.5">元件</th>
               <th className="px-4 py-2.5 text-center">库存</th>
-              <th className="px-4 py-2.5">品牌</th>
-              <th className="px-4 py-2.5">封装</th>
-              <th className="px-4 py-2.5">分类</th>
+              <th className="px-4 py-2.5 text-center">品牌</th>
+              <th className="px-4 py-2.5 text-center">封装</th>
+              <th className="px-4 py-2.5 text-center">分类</th>
               <th className="px-4 py-2.5 text-right">价格</th>
             </tr>
           </thead>
@@ -263,9 +263,9 @@ export function ComponentListClient({
                       </span>
                       {low && <Badge color="red">低</Badge>}
                     </td>
-                    <td className="px-4 py-2 text-neutral-600">{row.brand ?? '-'}</td>
-                    <td className="px-4 py-2 text-neutral-600">{row.packageName ?? '-'}</td>
-                    <td className="px-4 py-2 text-neutral-600">
+                    <td className="px-4 py-2 text-center text-neutral-600">{row.brand ?? '-'}</td>
+                    <td className="px-4 py-2 text-center text-neutral-600">{row.packageName ?? '-'}</td>
+                    <td className="px-4 py-2 text-center text-neutral-600">
                       {row.category ? (
                         <button
                           onClick={() => apply({ category: row.category ?? undefined })}
