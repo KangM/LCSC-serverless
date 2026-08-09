@@ -204,20 +204,20 @@ export function ComponentListClient({
         </div>
       )}
 
-      {/* 表格（右侧留 ~100px 空白，避免内容贴边） */}
-      <div className="mr-6 overflow-x-auto rounded-xl border border-neutral-200 bg-white md:mr-[100px]">
+      {/* 表格 */}
+      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
-              <th className="w-10 px-3 py-2.5">
+              <th className="w-10 pl-4 pr-3 py-2.5">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-blue-600" />
               </th>
-              <th className="px-3 py-2.5">元件</th>
-              <th className="px-3 py-2.5 text-right">库存</th>
-              <th className="px-3 py-2.5">品牌</th>
-              <th className="px-3 py-2.5">封装</th>
-              <th className="px-3 py-2.5">分类</th>
-              <th className="px-3 py-2.5 text-right">价格</th>
+              <th className="px-4 py-2.5">元件</th>
+              <th className="px-4 py-2.5 text-right">库存</th>
+              <th className="px-4 py-2.5">品牌</th>
+              <th className="px-4 py-2.5">封装</th>
+              <th className="px-4 py-2.5">分类</th>
+              <th className="pl-4 pr-6 py-2.5 text-right">价格</th>
             </tr>
           </thead>
           <tbody>
@@ -228,7 +228,7 @@ export function ComponentListClient({
                 const low = row.threshold > 0 && row.stockQuantity <= row.threshold
                 return (
                   <tr key={row.partNumber} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
-                    <td className="px-3 py-2">
+                    <td className="pl-4 pr-3 py-2">
                       <input
                         type="checkbox"
                         checked={selected.has(row.partNumber)}
@@ -236,7 +236,7 @@ export function ComponentListClient({
                         className="accent-blue-600"
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
                         {row.imageUrl ? (
                           <ImageHoverZoom src={row.imageUrl} alt={row.partNumber} className="h-8 w-8 shrink-0 rounded object-contain" />
@@ -257,15 +257,15 @@ export function ComponentListClient({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-4 py-2 text-right">
                       <span className={low ? 'font-semibold text-red-600' : 'font-medium'}>
                         {row.stockQuantity}
                       </span>
                       {low && <Badge color="red">低</Badge>}
                     </td>
-                    <td className="px-3 py-2 text-neutral-600">{row.brand ?? '-'}</td>
-                    <td className="px-3 py-2 text-neutral-600">{row.packageName ?? '-'}</td>
-                    <td className="px-3 py-2 text-neutral-600">
+                    <td className="px-4 py-2 text-neutral-600">{row.brand ?? '-'}</td>
+                    <td className="px-4 py-2 text-neutral-600">{row.packageName ?? '-'}</td>
+                    <td className="px-4 py-2 text-neutral-600">
                       {row.category ? (
                         <button
                           onClick={() => apply({ category: row.category ?? undefined })}
@@ -278,7 +278,7 @@ export function ComponentListClient({
                         '-'
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right text-neutral-600">
+                    <td className="pl-4 pr-6 py-2 text-right text-neutral-600">
                       {row.price != null ? `¥${row.price}` : '-'}
                     </td>
                   </tr>
