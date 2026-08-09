@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Badge, Button, Card, Input, Modal } from './ui'
+import { TimeText } from './TimeText'
 import { InboundModal } from './InboundModal'
 import { StockActionModal, type StockMode } from './StockActionModal'
 import { useToast } from './Toast'
@@ -208,7 +209,7 @@ export function ComponentDetailModal({
             </div>
             {row.lastFetchedAt && (
               <p className="mt-2 text-xs text-neutral-400">
-                最近从立创更新：{new Date(row.lastFetchedAt).toLocaleString('zh-CN')}
+                最近从立创更新：<TimeText value={row.lastFetchedAt} />
               </p>
             )}
           </Card>
@@ -251,7 +252,7 @@ export function ComponentDetailModal({
                       <span className="flex-1 truncate text-neutral-500">{t.note ?? ''}</span>
                       <span className="text-xs text-neutral-400">{t.beforeQty} → {t.afterQty}</span>
                       <span className="w-36 shrink-0 text-right text-xs text-neutral-400">
-                        {new Date(t.createdAt).toLocaleString('zh-CN')}
+                        <TimeText value={t.createdAt} />
                       </span>
                     </div>
                   )

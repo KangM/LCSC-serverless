@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 import { DashboardQuickActions } from '@/components/DashboardQuickActions'
+import { TimeText } from '@/components/TimeText'
 import { dashboardStats, listLowStock, recentTransactions } from '@/lib/db'
 
 export const metadata: Metadata = { title: '仪表盘 · 元件库存管理' }
@@ -105,7 +106,7 @@ export default async function DashboardPage() {
                     </span>
                     <span className="flex-1 truncate text-xs text-neutral-400">{t.note ?? ''}</span>
                     <span className="text-xs text-neutral-400">
-                      {new Date(t.createdAt).toLocaleString('zh-CN')}
+                      <TimeText value={t.createdAt} />
                     </span>
                   </div>
                 )

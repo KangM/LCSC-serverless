@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Badge, Card } from '@/components/ui'
 import { DetailActions } from '@/components/DetailActions'
+import { TimeText } from '@/components/TimeText'
 import { getComponent, listTransactions } from '@/lib/db'
 
 export const metadata: Metadata = { title: '元件详情 · 元件库存管理' }
@@ -87,7 +88,7 @@ export default async function ComponentDetailPage({ params }: Props) {
             />
           </div>
           <p className="mt-3 text-xs text-neutral-400">
-            最近从立创更新：{row.lastFetchedAt ? new Date(row.lastFetchedAt).toLocaleString('zh-CN') : '从未'}
+            最近从立创更新：{row.lastFetchedAt ? <TimeText value={row.lastFetchedAt} /> : '从未'}
           </p>
         </Card>
 
@@ -134,7 +135,7 @@ export default async function ComponentDetailPage({ params }: Props) {
                     {t.beforeQty} → {t.afterQty}
                   </span>
                   <span className="w-36 text-right text-xs text-neutral-400">
-                    {new Date(t.createdAt).toLocaleString('zh-CN')}
+                    <TimeText value={t.createdAt} />
                   </span>
                 </div>
               )

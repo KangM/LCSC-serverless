@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Badge, Button, Card, EmptyState } from '@/components/ui'
 import { TransactionFilters } from '@/components/TransactionFilters'
+import { TimeText } from '@/components/TimeText'
 import { TxPagination } from '@/components/TxPagination'
 import { TxPartNumberCell } from '@/components/TxPartNumberCell'
 import { listTransactions } from '@/lib/db'
@@ -101,7 +102,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
                 return (
                   <tr key={t.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
                     <td className="px-4 py-2 text-neutral-500">
-                      {new Date(t.createdAt).toLocaleString('zh-CN')}
+                      <TimeText value={t.createdAt} />
                     </td>
                     <td className="px-4 py-2">
                       <TxPartNumberCell partNumber={t.partNumber} />
