@@ -512,18 +512,14 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const client = getDb()
-  const totalResult = await client.execute({
-    sql: `SELECT COUNT(*) AS c FROM transactions t ${whereSql}`,
-    args,
-  })
-  const total = Number(totalResult.rows[0]?.c ?? 0)
-
+  // 一条 SQL 同时返回分页数据与总数（窗口函数），避免 COUNT + SELECT 两次远程往返
   const rows = await client.execute({
-    sql: `SELECT t.*, c.name AS name FROM transactions t
+    sql: `SELECT t.*, c.name AS name, COUNT(*) OVER() AS _total FROM transactions t
           LEFT JOIN components c ON c.part_number = t.part_number
           ${whereSql} ORDER BY t.id DESC LIMIT ? OFFSET ?`,
     args: [...args, pageSize, (page - 1) * pageSize],
   })
+  const total = Number(rows.rows[0]?._total ?? 0)
 
   return {
     items: rows.rows.map(mapTransaction),
