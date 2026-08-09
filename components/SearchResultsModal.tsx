@@ -24,6 +24,7 @@ export function SearchResultsModal({
   const [keyword, setKeyword] = useState(initialKeyword)
   const [searchTerm, setSearchTerm] = useState(initialKeyword)
   const [items, setItems] = useState<ComponentDetail[]>([])
+  const [inStockSet, setInStockSet] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -35,7 +36,9 @@ export function SearchResultsModal({
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/lcsc/search?k=${encodeURIComponent(k)}&page=${targetPage}`)
+      const res = await fetch(`/api/lcsc/search?k=${encodeURIComponent(k)}&page=${targetPage}`, {
+        signal: AbortSignal.timeout(20_000),
+      })
       const data = await res.json()
       if (!res.ok || !data.items) {
         setError(data.error || '没有匹配结果')
@@ -43,6 +46,7 @@ export function SearchResultsModal({
         return
       }
       setItems((prev) => (targetPage === 1 ? data.items : [...prev, ...data.items]))
+      setInStockSet((prev) => (targetPage === 1 ? new Set(data.inStockSet ?? []) : new Set([...prev, ...(data.inStockSet ?? [])])))
       setPage(data.page)
       setTotalPages(data.totalPages)
     } catch {
@@ -58,6 +62,7 @@ export function SearchResultsModal({
       setKeyword(initialKeyword)
       setSearchTerm(initialKeyword)
       setItems([])
+      setInStockSet(new Set())
       setPage(1)
       setTotalPages(0)
       setError('')
@@ -143,9 +148,14 @@ export function SearchResultsModal({
                       {c.packageName && <span>封装 {c.packageName}</span>}
                       {c.category && <span>{c.category}</span>}
                     </div>
-                    <div className="mt-0.5 text-xs">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                       <span className="font-medium text-neutral-800">¥{c.price ?? '-'}</span>
-                      <span className="ml-2 text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
+                      <span className="text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
+                      {inStockSet.has(c.partNumber) ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">在库</span>
+                      ) : (
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-500">未入库</span>
+                      )}
                     </div>
                     <a
                       href="#"

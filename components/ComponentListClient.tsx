@@ -157,6 +157,32 @@ export function ComponentListClient({
         </Button>
       </div>
 
+      {/* 分类快速筛选 chips */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-neutral-400">分类：</span>
+          <button
+            onClick={() => apply({ category: '' })}
+            className={`rounded-full border px-2.5 py-1 text-xs transition ${
+              !category ? 'border-blue-500 bg-blue-600 text-white' : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
+            }`}
+          >
+            全部
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => apply({ category: c })}
+              className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                category === c ? 'border-blue-500 bg-blue-600 text-white' : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 批量选择栏 */}
       {selected.size > 0 && (
         <div className="flex items-center justify-between rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-700">
@@ -233,7 +259,19 @@ export function ComponentListClient({
                     </td>
                     <td className="px-3 py-2 text-neutral-600">{row.brand ?? '-'}</td>
                     <td className="px-3 py-2 text-neutral-600">{row.packageName ?? '-'}</td>
-                    <td className="px-3 py-2 text-neutral-600">{row.category ?? '-'}</td>
+                    <td className="px-3 py-2 text-neutral-600">
+                      {row.category ? (
+                        <button
+                          onClick={() => apply({ category: row.category ?? undefined })}
+                          className="text-blue-600 hover:underline"
+                          title={`筛选分类：${row.category}`}
+                        >
+                          {row.category}
+                        </button>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right text-neutral-600">
                       {row.price != null ? `¥${row.price}` : '-'}
                     </td>

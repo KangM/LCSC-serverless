@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Button, Input, Modal } from './ui'
+import { FullscreenLoader } from './FullscreenLoader'
 
 interface OcrLine {
   text: string
@@ -72,6 +73,8 @@ export function OcrModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: dataUrl }),
+        // 外部视觉 API 可能较慢，30 秒超时
+        signal: AbortSignal.timeout(30_000),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -82,8 +85,10 @@ export function OcrModal({
       setLines(data.lines ?? [])
       // 默认全不选，由用户点选关键词
       setSelected(new Set())
-    } catch {
-      setError('识别失败，请重试')
+    } catch (e) {
+      setError(
+        e instanceof Error && e.name === 'TimeoutError' ? '识别超时（30 秒），请检查 OCR 服务或重试' : '识别失败，请重试',
+      )
     } finally {
       setRecognizing(false)
     }
@@ -115,8 +120,9 @@ export function OcrModal({
   }
 
   return (
-    <Modal open={open} title="拍照识别入库" onClose={() => { reset(); onClose() }}>
-      <div className="space-y-4">
+    <>
+      <Modal open={open} title="拍照识别入库" onClose={() => { reset(); onClose() }}>
+        <div className="space-y-4">
         {/* 拍照/上传 */}
         <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-dashed border-neutral-300 p-4">
           <input
@@ -183,7 +189,9 @@ export function OcrModal({
             </div>
           </div>
         )}
-      </div>
-    </Modal>
+        </div>
+      </Modal>
+      {recognizing && <FullscreenLoader message="正在识别图片，请稍候…" />}
+    </>
   )
 }

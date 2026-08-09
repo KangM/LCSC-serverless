@@ -46,8 +46,8 @@ export function ComponentDetailModal({
     setError('')
     try {
       const [detailRes, txRes] = await Promise.all([
-        fetch(`/api/components/${encodeURIComponent(partNumber)}`),
-        fetch(`/api/components/${encodeURIComponent(partNumber)}/transactions`),
+        fetch(`/api/components/${encodeURIComponent(partNumber)}`, { signal: AbortSignal.timeout(15_000) }),
+        fetch(`/api/components/${encodeURIComponent(partNumber)}/transactions`, { signal: AbortSignal.timeout(15_000) }),
       ])
       const detail = await detailRes.json()
       const tx = await txRes.json()

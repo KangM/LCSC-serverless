@@ -36,7 +36,7 @@ export default async function ComponentsPage({ searchParams }: Props) {
   ])
 
   return (
-    <div>
+    <div className="max-w-[1200px]">
       <h1 className="mb-4 text-xl font-semibold">元件列表</h1>
       <ComponentListClient
         initial={data}

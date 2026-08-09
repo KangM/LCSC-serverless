@@ -66,7 +66,9 @@ export function InboundModal({
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/lcsc/lookup?pn=${encodeURIComponent(pn)}`)
+      const res = await fetch(`/api/lcsc/lookup?pn=${encodeURIComponent(pn)}`, {
+        signal: AbortSignal.timeout(15_000),
+      })
       const data = await res.json()
       if (!res.ok || !data.item) {
         setError(data.error || '未找到该元件')
