@@ -32,7 +32,9 @@ export async function proxy(request: NextRequest) {
   }
 
   console.log(`[perf] proxy total ${(performance.now() - t0).toFixed(1)}ms ${pathname}`)
-  return NextResponse.next()
+  const res = NextResponse.next()
+  res.headers.set('X-Perf-Proxy-Ms', (performance.now() - t0).toFixed(1))
+  return res
 }
 
 export const config = {

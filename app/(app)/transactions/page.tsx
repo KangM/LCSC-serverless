@@ -56,7 +56,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
     page,
     pageSize: 30,
   })
-  console.log(`[perf] page /transactions data ${(performance.now() - t0).toFixed(1)}ms total=${data.total} page=${page}`)
+  const dbMs = (performance.now() - t0).toFixed(1)
+  console.log(`[perf] page /transactions data ${dbMs}ms total=${data.total} page=${page}`)
 
   // CSV 导出参数与当前筛选一致（含默认日期范围，ISO 边界）
   const exportParams = new URLSearchParams()
@@ -67,9 +68,12 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const exportQs = exportParams.toString()
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">流水记录</h1>
+    <>
+      {/* 诊断用：DB 数据阶段耗时（浏览器 Network → 响应体可看），部署排查后删除 */}
+      <meta name="x-perf-page" content={`db=${dbMs}ms total=${data.total}`} />
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">流水记录</h1>
         <a href={`/api/export/transactions${exportQs ? `?${exportQs}` : ''}`}>
           <Button variant="secondary" size="sm">导出 CSV（当前筛选）</Button>
         </a>
@@ -130,6 +134,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
           <TxPagination totalPages={data.totalPages} />
         </div>
       </Card>
-    </div>
+      </div>
+    </>
   )
 }
