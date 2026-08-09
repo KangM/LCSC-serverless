@@ -460,7 +460,7 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
   }
   if (query.from) {
     // from 传 UTC ISO（如 2026-08-10T00:00:00.000Z）精确比较；纯日期按 UTC 零点兼容
-    where.push('created_at >= ?')
+    where.push('t.created_at >= ?')
     args.push(query.from)
   }
   if (query.to) {
@@ -469,7 +469,7 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
     const toValue = /^\d{4}-\d{2}-\d{2}$/.test(query.to)
       ? `${query.to}T23:59:59.999Z`
       : query.to
-    where.push('created_at <= ?')
+    where.push('t.created_at <= ?')
     args.push(toValue)
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
