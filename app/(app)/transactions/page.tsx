@@ -47,6 +47,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
   const fromIso = toIso(from, false)
   const toIsoValue = toIso(to, true)
 
+  const t0 = performance.now()
   const data = await listTransactions({
     partNumber,
     type: type === 'in' || type === 'out' || type === 'adjust' ? type : undefined,
@@ -55,6 +56,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
     page,
     pageSize: 30,
   })
+  console.log(`[perf] page /transactions data ${(performance.now() - t0).toFixed(1)}ms total=${data.total} page=${page}`)
 
   // CSV 导出参数与当前筛选一致（含默认日期范围，ISO 边界）
   const exportParams = new URLSearchParams()

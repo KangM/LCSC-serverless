@@ -91,15 +91,52 @@ let db: Client | null = null
  */
 const LOCAL_DB_PATH = `file:///${path.resolve(process.cwd(), 'data/inventory.db').replace(/\\/g, '/')}`
 
-/** 获取数据库客户端（进程内单例） */
+/**
+ * 获取数据库客户端（进程内单例）。
+ * 打点模式：默认开启，每条 SQL 打 [perf] 日志；设 PERF_LOG=0 关闭。
+ */
 export function getDb(): Client {
   if (db) return db
   const url = process.env.TURSO_DATABASE_URL
-  db = createClient(
+  const raw = createClient(
     url
       ? { url, authToken: process.env.TURSO_AUTH_TOKEN }
       : { url: LOCAL_DB_PATH },
   )
+  if (process.env.PERF_LOG === '0') {
+    db = raw
+    return db
+  }
+
+  // 计时包装：execute / batch 都打耗时日志（诊断导航慢用，成本微秒级）
+  const sqlOf = (stmt: unknown): string => {
+    if (typeof stmt === 'string') return stmt
+    if (Array.isArray(stmt)) return `batch(${stmt.length})`
+    if (stmt && typeof stmt === 'object' && 'sql' in stmt) return String((stmt as { sql: unknown }).sql)
+    return String(stmt)
+  }
+  const timed =
+    (method: 'execute' | 'batch') =>
+    async (...args: unknown[]) => {
+      const t0 = performance.now()
+      try {
+        const r = await (raw[method] as (...a: unknown[]) => Promise<unknown>)(...args)
+        const ms = (performance.now() - t0).toFixed(1)
+        console.log(`[perf] db.${method} ${ms}ms ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
+        return r
+      } catch (e) {
+        const ms = (performance.now() - t0).toFixed(1)
+        console.log(`[perf] db.${method} ${ms}ms FAIL ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
+        throw e
+      }
+    }
+  db = new Proxy(raw, {
+    get(target, prop, receiver) {
+      if (prop === 'execute') return timed('execute')
+      if (prop === 'batch') return timed('batch')
+      return Reflect.get(target, prop, receiver)
+    },
+  }) as Client
   return db
 }
 
