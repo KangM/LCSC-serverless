@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Button, Input, Modal } from './ui'
 import { FullscreenLoader } from './FullscreenLoader'
+import { compressImage, formatBytes } from '@/lib/image-compress'
 
 interface OcrLine {
   text: string
@@ -25,6 +26,7 @@ export function OcrModal({
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState('')
+  const [compressedInfo, setCompressedInfo] = useState('')
   const [lines, setLines] = useState<OcrLine[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [manualTag, setManualTag] = useState('')
@@ -50,6 +52,7 @@ export function OcrModal({
 
   function reset() {
     setPreview('')
+    setCompressedInfo('')
     setLines([])
     setSelected(new Set())
     setManualTag('')
@@ -61,12 +64,27 @@ export function OcrModal({
     setRecognizing(true)
     setError('')
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result))
-        reader.onerror = () => reject(new Error('读取图片失败'))
-        reader.readAsDataURL(file)
-      })
+      // 先压缩到 300KB 内再发送，减小传输体积与识别等待时间
+      let dataUrl: string
+      try {
+        const compressed = await compressImage(file)
+        setCompressedInfo(`已压缩至 ${formatBytes(compressed.size)}`)
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => reject(new Error('读取图片失败'))
+          reader.readAsDataURL(compressed)
+        })
+      } catch {
+        // 压缩失败（非常规图片）回退原图
+        setCompressedInfo('')
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => reject(new Error('读取图片失败'))
+          reader.readAsDataURL(file)
+        })
+      }
       setPreview(dataUrl)
 
       const res = await fetch('/api/ocr/recognize', {
@@ -139,8 +157,13 @@ export function OcrModal({
         </div>
 
         {preview && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="待识别" className="mx-auto max-h-40 rounded-lg object-contain" />
+          <div className="space-y-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="待识别" className="mx-auto max-h-40 rounded-lg object-contain" />
+            {compressedInfo && (
+              <p className="text-center text-xs text-green-600">{compressedInfo}</p>
+            )}
+          </div>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}

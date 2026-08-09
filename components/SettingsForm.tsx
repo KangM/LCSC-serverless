@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Button, Input, Label, Select } from './ui'
+import { compressImage } from '@/lib/image-compress'
 
 export interface OcrSettings {
   type: 'openai' | 'rapidocr' | ''
@@ -35,11 +36,13 @@ export function SettingsForm({ initial }: { initial: OcrSettings }) {
     setTestError('')
     setTestLines(null)
     try {
+      // 先压缩到 300KB 内再发送
+      const compressed = await compressImage(file)
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(String(reader.result))
         reader.onerror = () => reject(new Error('读取图片失败'))
-        reader.readAsDataURL(file)
+        reader.readAsDataURL(compressed)
       })
       setTestImage(dataUrl)
       const res = await fetch('/api/ocr/recognize', {
