@@ -42,3 +42,6 @@ next-env.d.ts
 
 # 本地 SQLite 数据文件
 /data/
+
+# Reasonix 工具状态文件
+.reasonix/
