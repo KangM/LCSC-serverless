@@ -192,7 +192,6 @@ export function ComponentListClient({
               <th className="px-3 py-2.5">分类</th>
               <th className="px-3 py-2.5 text-right">价格</th>
               <th className="px-3 py-2.5 text-right">库存</th>
-              <th className="px-3 py-2.5 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -243,13 +242,6 @@ export function ComponentListClient({
                         {row.stockQuantity}
                       </span>
                       {low && <Badge color="red">低</Badge>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => { setInitialPn(row.partNumber); setInboundOpen(true) }}>入库</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setStockTarget({ mode: 'out', row })}>出库</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setStockTarget({ mode: 'adjust', row })}>盘点</Button>
-                      </div>
                     </td>
                   </tr>
                 )

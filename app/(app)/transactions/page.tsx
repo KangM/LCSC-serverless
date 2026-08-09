@@ -80,7 +80,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
         {data.items.length === 0 ? (
           <EmptyState message="暂无流水记录" />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
                 <th className="px-4 py-2.5">时间</th>
@@ -118,6 +119,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
               })}
             </tbody>
           </table>
+          </div>
         )}
         <div className="p-3">
           <TxPagination totalPages={data.totalPages} />

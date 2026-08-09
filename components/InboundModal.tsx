@@ -149,26 +149,39 @@ export function InboundModal({
         <div className="space-y-4">
           <div>
             <Label>立创编号 / 型号 / 关键词</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitKeyword()}
                 placeholder="C 编号精确查；其他自动搜索立创"
                 autoFocus
-                className="flex-1"
+                className="min-w-0 flex-1"
               />
-              <Button onClick={submitKeyword} disabled={loading || !keyword.trim()} className="shrink-0">
-                {loading ? '查询中…' : '查询'}
-              </Button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setQrOpen(true)} title="扫描立创料盘二维码">
-                📷 扫码
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setOcrOpen(true)} title="拍照识别元件丝印/标签">
-                🤖 拍照识别
-              </Button>
+              {/* 按钮组：查询 / 扫码 / 拍照识别 */}
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-neutral-300 bg-white">
+                <button
+                  onClick={submitKeyword}
+                  disabled={loading || !keyword.trim()}
+                  className="bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? '查询中…' : '查询'}
+                </button>
+                <button
+                  onClick={() => setQrOpen(true)}
+                  title="扫描立创料盘二维码"
+                  className="border-l border-neutral-300 px-3 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  📷 扫码
+                </button>
+                <button
+                  onClick={() => setOcrOpen(true)}
+                  title="拍照识别元件丝印/标签"
+                  className="border-l border-neutral-300 px-3 py-2 text-sm text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  🤖 拍照识别
+                </button>
+              </div>
             </div>
             <p className="mt-2 text-xs text-neutral-400">
               输入 C 开头编号（如 C14663）直接查详情；输入型号或关键词打开搜索结果窗口
@@ -256,10 +269,12 @@ export function InboundModal({
       <OcrModal
         open={ocrOpen}
         onClose={() => setOcrOpen(false)}
-        onPicked={(pn) => {
+        onSearch={(keywords) => {
+          // 识别选词后：关闭 OCR，用选中的关键词打开立创搜索结果窗口
+          const joined = keywords.join(' ')
           setOcrOpen(false)
-          setKeyword(pn)
-          void lookup(pn)
+          setKeyword(joined)
+          setSearchOpen(true)
         }}
       />
     </Modal>

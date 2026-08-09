@@ -101,8 +101,9 @@ export function SearchResultsModal({
             onKeyDown={(e) => e.key === 'Enter' && resubmit()}
             placeholder="输入关键词搜索立创"
             autoFocus
+            className="min-w-0 flex-1"
           />
-          <Button onClick={resubmit} disabled={loading || !keyword.trim()}>
+          <Button onClick={resubmit} disabled={loading || !keyword.trim()} className="shrink-0">
             搜索
           </Button>
         </div>
@@ -119,8 +120,8 @@ export function SearchResultsModal({
             const specs = Object.entries(c.specifications ?? {})
             return (
               <div key={c.partNumber} className="rounded-lg border border-neutral-200 hover:border-blue-300">
-                <div className="flex items-center gap-3 p-2.5">
-                  <span className="w-7 shrink-0 text-center text-sm text-neutral-400">{idx + 1}</span>
+                <div className="flex items-start gap-3 p-2.5">
+                  <span className="mt-1 w-7 shrink-0 text-center text-sm text-neutral-400">{idx + 1}</span>
                   {c.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -133,6 +134,7 @@ export function SearchResultsModal({
                   ) : (
                     <div className="h-16 w-16 shrink-0 rounded bg-neutral-100" />
                   )}
+                  {/* 信息区：规格链接与展开表都在 flex-1 内，与文本对齐 */}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{c.name ?? c.partNumber}</div>
                     <div className="font-mono text-xs text-blue-600">{c.partNumber}</div>
@@ -145,34 +147,39 @@ export function SearchResultsModal({
                       <span className="font-medium text-neutral-800">¥{c.price ?? '-'}</span>
                       <span className="ml-2 text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <Button size="sm" variant="secondary" onClick={() => toggleExpand(c.partNumber)}>
-                      {isExpanded ? '收起' : '规格'}
-                    </Button>
-                    <Button size="sm" onClick={() => onPicked(c.partNumber)}>
-                      入库
-                    </Button>
-                  </div>
-                </div>
-                {isExpanded && (
-                  <div className="border-t border-neutral-100 bg-neutral-50/60 px-3 py-2">
-                    {specs.length === 0 ? (
-                      <p className="text-xs text-neutral-400">暂无规格参数</p>
-                    ) : (
-                      <table className="w-full text-xs">
-                        <tbody>
-                          {specs.map(([k, v]) => (
-                            <tr key={k} className="border-b border-neutral-100 last:border-0">
-                              <td className="w-1/3 py-1 pr-2 text-neutral-500">{k}</td>
-                              <td className="py-1 text-neutral-700">{v}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        toggleExpand(c.partNumber)
+                      }}
+                      className="mt-1 inline-block text-xs text-blue-600 hover:underline"
+                    >
+                      {isExpanded ? '▾ 收起规格参数' : '▸ 展开规格参数'}
+                    </a>
+                    {isExpanded && (
+                      <div className="mt-1.5 rounded bg-neutral-50/70 px-2 py-1.5">
+                        {specs.length === 0 ? (
+                          <p className="text-xs text-neutral-400">暂无规格参数</p>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <tbody>
+                              {specs.map(([k, v]) => (
+                                <tr key={k} className="border-b border-neutral-100 last:border-0">
+                                  <td className="w-1/3 py-1 pr-2 text-neutral-500">{k}</td>
+                                  <td className="py-1 text-neutral-700">{v}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                  <Button size="sm" onClick={() => onPicked(c.partNumber)} className="shrink-0">
+                    入库
+                  </Button>
+                </div>
               </div>
             )
           })}
