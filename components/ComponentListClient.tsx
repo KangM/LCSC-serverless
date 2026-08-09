@@ -204,8 +204,8 @@ export function ComponentListClient({
         </div>
       )}
 
-      {/* 表格（容器右侧留白保证最后一列不贴边；单元格 padding 全列统一） */}
-      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white pr-6">
+      {/* 表格：单元格统一 px-4 → 列间 32px、首尾 16px（space-around 效果） */}
+      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
