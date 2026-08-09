@@ -40,6 +40,7 @@ export interface ComponentRow {
 export interface TransactionRow {
   id: number
   partNumber: string
+  name: string | null
   type: 'in' | 'out' | 'adjust'
   quantity: number
   beforeQty: number
@@ -149,6 +150,7 @@ function mapTransaction(row: SqlRow): TransactionRow {
   return {
     id: Number(row.id),
     partNumber: row.part_number as string,
+    name: (row.name as string) ?? null,
     type: row.type as TransactionRow['type'],
     quantity: Number(row.quantity),
     beforeQty: Number(row.before_qty),
@@ -449,7 +451,7 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
   const where: string[] = []
   const args: InValue[] = []
   if (query.partNumber && query.partNumber.trim()) {
-    where.push('part_number = ?')
+    where.push('t.part_number = ?')
     args.push(normalizePartNumber(query.partNumber))
   }
   if (query.type) {
@@ -474,13 +476,15 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
 
   const client = getDb()
   const totalResult = await client.execute({
-    sql: `SELECT COUNT(*) AS c FROM transactions ${whereSql}`,
+    sql: `SELECT COUNT(*) AS c FROM transactions t ${whereSql}`,
     args,
   })
   const total = Number(totalResult.rows[0]?.c ?? 0)
 
   const rows = await client.execute({
-    sql: `SELECT * FROM transactions ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`,
+    sql: `SELECT t.*, c.name AS name FROM transactions t
+          LEFT JOIN components c ON c.part_number = t.part_number
+          ${whereSql} ORDER BY t.id DESC LIMIT ? OFFSET ?`,
     args: [...args, pageSize, (page - 1) * pageSize],
   })
 
@@ -496,7 +500,7 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
 /** 最近 N 条流水（仪表盘用） */
 export async function recentTransactions(limit = 10): Promise<TransactionRow[]> {
   const result = await getDb().execute({
-    sql: 'SELECT * FROM transactions ORDER BY id DESC LIMIT ?',
+    sql: 'SELECT t.*, c.name AS name FROM transactions t\n          LEFT JOIN components c ON c.part_number = t.part_number\n          ORDER BY t.id DESC LIMIT ?',
     args: [limit],
   })
   return result.rows.map(mapTransaction)

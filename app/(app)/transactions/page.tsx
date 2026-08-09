@@ -86,6 +86,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
               <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
                 <th className="px-4 py-2.5">时间</th>
                 <th className="px-4 py-2.5">元件</th>
+                <th className="px-4 py-2.5">名称</th>
                 <th className="px-4 py-2.5">类型</th>
                 <th className="px-4 py-2.5 text-right">数量</th>
                 <th className="px-4 py-2.5 text-right">库存变化</th>
@@ -105,6 +106,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
                     <td className="px-4 py-2">
                       <TxPartNumberCell partNumber={t.partNumber} />
                     </td>
+                    <td className="px-4 py-2 text-neutral-700">{t.name ?? ''}</td>
                     <td className="px-4 py-2"><Badge color={meta.color}>{meta.label}</Badge></td>
                     <td className={`px-4 py-2 text-right font-medium ${t.type === 'out' ? 'text-red-600' : t.type === 'in' ? 'text-green-600' : ''}`}>
                       {sign}{t.type === 'adjust' ? Math.abs(t.quantity) : t.quantity}
