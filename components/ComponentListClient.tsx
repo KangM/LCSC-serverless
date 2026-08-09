@@ -213,16 +213,16 @@ export function ComponentListClient({
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-blue-600" />
               </th>
               <th className="px-3 py-2.5">元件</th>
+              <th className="px-3 py-2.5 text-right">库存</th>
               <th className="px-3 py-2.5">品牌</th>
               <th className="px-3 py-2.5">封装</th>
               <th className="px-3 py-2.5">分类</th>
               <th className="px-3 py-2.5 text-right">价格</th>
-              <th className="px-3 py-2.5 text-right">库存</th>
             </tr>
           </thead>
           <tbody>
             {initial.items.length === 0 ? (
-              <tr><td colSpan={8}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
+              <tr><td colSpan={7}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
             ) : (
               initial.items.map((row) => {
                 const low = row.threshold > 0 && row.stockQuantity <= row.threshold
@@ -257,6 +257,12 @@ export function ComponentListClient({
                         </div>
                       </div>
                     </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className={low ? 'font-semibold text-red-600' : 'font-medium'}>
+                        {row.stockQuantity}
+                      </span>
+                      {low && <Badge color="red">低</Badge>}
+                    </td>
                     <td className="px-3 py-2 text-neutral-600">{row.brand ?? '-'}</td>
                     <td className="px-3 py-2 text-neutral-600">{row.packageName ?? '-'}</td>
                     <td className="px-3 py-2 text-neutral-600">
@@ -274,12 +280,6 @@ export function ComponentListClient({
                     </td>
                     <td className="px-3 py-2 text-right text-neutral-600">
                       {row.price != null ? `¥${row.price}` : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <span className={low ? 'font-semibold text-red-600' : 'font-medium'}>
-                        {row.stockQuantity}
-                      </span>
-                      {low && <Badge color="red">低</Badge>}
                     </td>
                   </tr>
                 )
