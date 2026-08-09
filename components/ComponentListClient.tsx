@@ -213,7 +213,7 @@ export function ComponentListClient({
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-blue-600" />
               </th>
               <th className="px-4 py-2.5">元件</th>
-              <th className="px-4 py-2.5 text-right">库存</th>
+              <th className="px-4 py-2.5 text-center">库存</th>
               <th className="px-4 py-2.5">品牌</th>
               <th className="px-4 py-2.5">封装</th>
               <th className="px-4 py-2.5">分类</th>
@@ -257,7 +257,7 @@ export function ComponentListClient({
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 text-center">
                       <span className={low ? 'font-semibold text-red-600' : 'font-medium'}>
                         {row.stockQuantity}
                       </span>
