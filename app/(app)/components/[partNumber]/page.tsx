@@ -81,6 +81,7 @@ export default async function ComponentDetailPage({ params }: Props) {
           <div className="mt-4">
             <DetailActions
               partNumber={row.partNumber}
+              name={row.name}
               stock={row.stockQuantity}
               threshold={row.threshold}
             />

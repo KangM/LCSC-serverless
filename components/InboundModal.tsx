@@ -6,6 +6,7 @@ import { QrScanModal } from './QrScanModal'
 import { OcrModal } from './OcrModal'
 import { SearchResultsModal } from './SearchResultsModal'
 import { parseLcscQrCode } from '@/lib/qr'
+import { useToast } from './Toast'
 import type { ComponentDetail } from '@/lib/lcsc'
 
 /**
@@ -34,6 +35,7 @@ export function InboundModal({
   const [qrOpen, setQrOpen] = useState(false)
   const [ocrOpen, setOcrOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const toast = useToast()
 
   const reset = useCallback(() => {
     setStep('input')
@@ -111,6 +113,7 @@ export function InboundModal({
         setError(data.error || '入库失败')
         return
       }
+      toast.success(`入库成功：${data.item.partNumber} +${quantity}`)
       onDone(data.item.partNumber)
       onClose()
     } catch {
@@ -153,18 +156,21 @@ export function InboundModal({
                 onKeyDown={(e) => e.key === 'Enter' && submitKeyword()}
                 placeholder="C 编号精确查；其他自动搜索立创"
                 autoFocus
+                className="flex-1"
               />
-              <Button onClick={submitKeyword} disabled={loading || !keyword.trim()}>
+              <Button onClick={submitKeyword} disabled={loading || !keyword.trim()} className="shrink-0">
                 {loading ? '查询中…' : '查询'}
               </Button>
-              <Button variant="secondary" onClick={() => setQrOpen(true)} title="扫描立创料盘二维码">
-                扫码
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setQrOpen(true)} title="扫描立创料盘二维码">
+                📷 扫码
               </Button>
-              <Button variant="secondary" onClick={() => setOcrOpen(true)} title="拍照识别元件丝印/标签">
-                拍照识别
+              <Button variant="secondary" size="sm" onClick={() => setOcrOpen(true)} title="拍照识别元件丝印/标签">
+                🤖 拍照识别
               </Button>
             </div>
-            <p className="mt-1 text-xs text-neutral-400">
+            <p className="mt-2 text-xs text-neutral-400">
               输入 C 开头编号（如 C14663）直接查详情；输入型号或关键词打开搜索结果窗口
             </p>
             {error && <p className="mt-1 text-xs text-red-600">{error}</p>}

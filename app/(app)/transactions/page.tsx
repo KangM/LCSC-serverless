@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { Badge, Button, Card, EmptyState } from '@/components/ui'
 import { TransactionFilters } from '@/components/TransactionFilters'
 import { TxPagination } from '@/components/TxPagination'
+import { TxPartNumberCell } from '@/components/TxPartNumberCell'
 import { listTransactions } from '@/lib/db'
 
 export const metadata: Metadata = { title: '流水记录 · 元件库存管理' }
@@ -102,9 +102,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
                       {new Date(t.createdAt).toLocaleString('zh-CN')}
                     </td>
                     <td className="px-4 py-2">
-                      <Link href={`/components/${t.partNumber}`} className="font-mono text-blue-700 hover:underline">
-                        {t.partNumber}
-                      </Link>
+                      <TxPartNumberCell partNumber={t.partNumber} />
                     </td>
                     <td className="px-4 py-2"><Badge color={meta.color}>{meta.label}</Badge></td>
                     <td className={`px-4 py-2 text-right font-medium ${t.type === 'out' ? 'text-red-600' : t.type === 'in' ? 'text-green-600' : ''}`}>

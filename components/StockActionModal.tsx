@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Input, Label, Modal } from './ui'
+import { useToast } from './Toast'
 
 export type StockMode = 'out' | 'adjust'
 
@@ -13,6 +14,7 @@ export function StockActionModal({
   open,
   mode,
   partNumber,
+  name,
   currentStock,
   onClose,
   onDone,
@@ -20,6 +22,7 @@ export function StockActionModal({
   open: boolean
   mode: StockMode
   partNumber: string
+  name?: string | null
   currentStock: number
   onClose: () => void
   onDone: () => void
@@ -28,6 +31,7 @@ export function StockActionModal({
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const toast = useToast()
 
   useEffect(() => {
     if (open) {
@@ -60,6 +64,7 @@ export function StockActionModal({
         setError(data.error || '操作失败')
         return
       }
+      toast.success(`${isOut ? '出库' : '盘点'}成功：${partNumber} ${isOut ? `-${num}` : `→${num}`}`)
       onDone()
       onClose()
     } catch {
@@ -72,7 +77,7 @@ export function StockActionModal({
   return (
     <Modal
       open={open}
-      title={isOut ? `出库 · ${partNumber}` : `盘点 · ${partNumber}`}
+      title={`${isOut ? '出库' : '盘点'} · ${name ? `${name} ` : ''}${partNumber}`}
       onClose={onClose}
     >
       <div className="space-y-4">

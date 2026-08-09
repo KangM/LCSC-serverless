@@ -1,11 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { Badge, Button, EmptyState, Input, Pagination, Select } from './ui'
 import { InboundModal } from './InboundModal'
 import { StockActionModal, type StockMode } from './StockActionModal'
+import { ComponentDetailModal } from './ComponentDetailModal'
+import { ImageHoverZoom } from './ImageHoverZoom'
 import type { ComponentRow } from '@/lib/db'
 
 export interface ListState {
@@ -48,6 +49,7 @@ export function ComponentListClient({
   const [inboundOpen, setInboundOpen] = useState(false)
   const [initialPn, setInitialPn] = useState<string | undefined>()
   const [stockTarget, setStockTarget] = useState<{ mode: StockMode; row: ComponentRow } | null>(null)
+  const [detailPn, setDetailPn] = useState<string | null>(null)
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -212,15 +214,17 @@ export function ComponentListClient({
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         {row.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={row.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded object-contain" referrerPolicy="no-referrer" />
+                          <ImageHoverZoom src={row.imageUrl} alt={row.partNumber} className="h-8 w-8 shrink-0 rounded object-contain" />
                         ) : (
                           <div className="h-8 w-8 shrink-0 rounded bg-neutral-100" />
                         )}
                         <div className="min-w-0">
-                          <Link href={`/components/${row.partNumber}`} className="font-medium text-blue-700 hover:underline">
+                          <button
+                            onClick={() => setDetailPn(row.partNumber)}
+                            className="text-left font-medium text-blue-700 hover:underline"
+                          >
                             {row.name ?? row.partNumber}
-                          </Link>
+                          </button>
                           <div className="font-mono text-xs text-neutral-400">
                             {row.partNumber}
                             {row.mpn ? ` · ${row.mpn}` : ''}
@@ -269,11 +273,18 @@ export function ComponentListClient({
           open
           mode={stockTarget.mode}
           partNumber={stockTarget.row.partNumber}
+          name={stockTarget.row.name}
           currentStock={stockTarget.row.stockQuantity}
           onClose={() => setStockTarget(null)}
           onDone={refresh}
         />
       )}
+      <ComponentDetailModal
+        open={detailPn !== null}
+        partNumber={detailPn ?? ''}
+        onClose={() => setDetailPn(null)}
+        onChanged={refresh}
+      />
     </div>
   )
 }

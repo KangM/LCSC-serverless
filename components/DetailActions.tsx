@@ -5,17 +5,21 @@ import { useState } from 'react'
 import { Button, Input } from './ui'
 import { InboundModal } from './InboundModal'
 import { StockActionModal, type StockMode } from './StockActionModal'
+import { useToast } from './Toast'
 
 export function DetailActions({
   partNumber,
+  name,
   stock,
   threshold,
 }: {
   partNumber: string
+  name?: string | null
   stock: number
   threshold: number
 }) {
   const router = useRouter()
+  const toast = useToast()
   const [inboundOpen, setInboundOpen] = useState(false)
   const [stockTarget, setStockTarget] = useState<{ mode: StockMode } | null>(null)
   const [editingThreshold, setEditingThreshold] = useState(false)
@@ -49,9 +53,12 @@ export function DetailActions({
         body: JSON.stringify({ action: 'refresh' }),
       })
       const data = await res.json()
-      if (!res.ok) setMessage(data.error || '刷新失败')
-      else {
+      if (!res.ok) {
+        setMessage(data.error || '刷新失败')
+        toast.error(data.error || '刷新失败')
+      } else {
         setMessage('已从立创刷新元件信息')
+        toast.success('已从立创刷新元件信息')
         refresh()
       }
     } catch {
@@ -108,6 +115,7 @@ export function DetailActions({
           open
           mode={stockTarget.mode}
           partNumber={partNumber}
+          name={name}
           currentStock={stock}
           onClose={() => setStockTarget(null)}
           onDone={refresh}

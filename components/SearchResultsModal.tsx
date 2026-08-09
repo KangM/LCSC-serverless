@@ -5,10 +5,10 @@ import { Button, Input, Modal } from './ui'
 import type { ComponentDetail } from '@/lib/lcsc'
 
 /**
- * 立创搜索结果独立窗口：
- * 卡片网格展示（图片 / 编号 / 名称 / 品牌 / 封装 / 价格 / 库存），
+ * 立创搜索结果窗口（单列列表）：
+ * 每行 = 序号 + 大图 + 编号 + 名称 + 品牌/封装/价格/库存；
+ * 行尾「规格」按钮默认收起，点击展开该元件的完整规格参数表。
  * 滚动到底部自动加载下一页（无限滚动）。
- * 点击卡片 → onPicked(partNumber) 回到入库确认。
  */
 export function SearchResultsModal({
   open,
@@ -28,6 +28,7 @@ export function SearchResultsModal({
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const listRef = useRef<HTMLDivElement>(null)
 
   const search = useCallback(async (k: string, targetPage: number) => {
@@ -60,6 +61,7 @@ export function SearchResultsModal({
       setPage(1)
       setTotalPages(0)
       setError('')
+      setExpanded(new Set())
       if (initialKeyword.trim()) void search(initialKeyword, 1)
     }
   }, [open, initialKeyword, search])
@@ -79,8 +81,17 @@ export function SearchResultsModal({
     void search(keyword.trim(), 1)
   }
 
+  function toggleExpand(pn: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(pn)) next.delete(pn)
+      else next.add(pn)
+      return next
+    })
+  }
+
   return (
-    <Modal open={open} title="立创搜索结果" onClose={onClose}>
+    <Modal open={open} title="立创搜索结果" onClose={onClose} wide>
       <div className="space-y-3">
         {/* 关键词（可修改重搜） */}
         <div className="flex gap-2">
@@ -98,50 +109,73 @@ export function SearchResultsModal({
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        {/* 结果卡片网格 + 无限滚动 */}
-        <div
-          ref={listRef}
-          onScroll={onScroll}
-          className="max-h-[55vh] space-y-2 overflow-y-auto pr-1"
-        >
+        {/* 结果列表（单列）+ 无限滚动 */}
+        <div ref={listRef} onScroll={onScroll} className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
           {items.length === 0 && !loading && !error && (
             <p className="py-10 text-center text-sm text-neutral-400">输入关键词后点击搜索</p>
           )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {items.map((c) => (
-              <button
-                key={c.partNumber}
-                onClick={() => onPicked(c.partNumber)}
-                className="flex gap-3 rounded-lg border border-neutral-200 p-2.5 text-left hover:border-blue-400 hover:bg-blue-50/50"
-              >
-                {c.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.imageUrl}
-                    alt={c.partNumber}
-                    className="h-14 w-14 shrink-0 rounded border border-neutral-100 bg-white object-contain"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="h-14 w-14 shrink-0 rounded bg-neutral-100" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{c.name ?? c.partNumber}</div>
-                  <div className="font-mono text-xs text-blue-600">{c.partNumber}</div>
-                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-neutral-500">
-                    {c.brand && <span>{c.brand}</span>}
-                    {c.packageName && <span>封装 {c.packageName}</span>}
-                    {c.category && <span>{c.category}</span>}
+          {items.map((c, idx) => {
+            const isExpanded = expanded.has(c.partNumber)
+            const specs = Object.entries(c.specifications ?? {})
+            return (
+              <div key={c.partNumber} className="rounded-lg border border-neutral-200 hover:border-blue-300">
+                <div className="flex items-center gap-3 p-2.5">
+                  <span className="w-7 shrink-0 text-center text-sm text-neutral-400">{idx + 1}</span>
+                  {c.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.imageUrl}
+                      alt={c.partNumber}
+                      className="h-16 w-16 shrink-0 rounded border border-neutral-100 bg-white object-contain"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 shrink-0 rounded bg-neutral-100" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{c.name ?? c.partNumber}</div>
+                    <div className="font-mono text-xs text-blue-600">{c.partNumber}</div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+                      {c.brand && <span>{c.brand}</span>}
+                      {c.packageName && <span>封装 {c.packageName}</span>}
+                      {c.category && <span>{c.category}</span>}
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      <span className="font-medium text-neutral-800">¥{c.price ?? '-'}</span>
+                      <span className="ml-2 text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs">
-                    <span className="font-medium text-neutral-800">¥{c.price ?? '-'}</span>
-                    <span className="ml-2 text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <Button size="sm" variant="secondary" onClick={() => toggleExpand(c.partNumber)}>
+                      {isExpanded ? '收起' : '规格'}
+                    </Button>
+                    <Button size="sm" onClick={() => onPicked(c.partNumber)}>
+                      入库
+                    </Button>
                   </div>
                 </div>
-              </button>
-            ))}
-          </div>
+                {isExpanded && (
+                  <div className="border-t border-neutral-100 bg-neutral-50/60 px-3 py-2">
+                    {specs.length === 0 ? (
+                      <p className="text-xs text-neutral-400">暂无规格参数</p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {specs.map(([k, v]) => (
+                            <tr key={k} className="border-b border-neutral-100 last:border-0">
+                              <td className="w-1/3 py-1 pr-2 text-neutral-500">{k}</td>
+                              <td className="py-1 text-neutral-700">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {loading && <p className="py-3 text-center text-xs text-neutral-400">加载中…</p>}
           {!loading && items.length > 0 && page >= totalPages && (
             <p className="py-3 text-center text-xs text-neutral-400">已加载全部结果</p>

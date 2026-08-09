@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Button, Modal } from './ui'
+import { useMemo, useRef, useState } from 'react'
+import { Button, Input, Modal } from './ui'
 import type { ComponentDetail } from '@/lib/lcsc'
 
 interface OcrLine {
@@ -11,7 +11,8 @@ interface OcrLine {
 
 /**
  * 拍照 OCR 入库弹窗：
- * 拍照/上传 → 服务端识别 → 展示可编辑文本行（勾选关键词）→ 搜索立创 → 选元件 → onPicked(partNumber)
+ * 拍照/上传 → 服务端识别 → 文本按空格分割成 tag（chip），点击选择关键词 →
+ * 搜索立创 → 选元件 → onPicked(partNumber)
  */
 export function OcrModal({
   open,
@@ -25,18 +26,35 @@ export function OcrModal({
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState('')
   const [lines, setLines] = useState<OcrLine[]>([])
-  const [checked, setChecked] = useState<Set<number>>(new Set())
-  const [editing, setEditing] = useState<Record<number, string>>({})
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [manualTag, setManualTag] = useState('')
   const [recognizing, setRecognizing] = useState(false)
   const [searching, setSearching] = useState(false)
   const [candidates, setCandidates] = useState<ComponentDetail[] | null>(null)
   const [error, setError] = useState('')
 
+  /** 识别文本 → 按空格分割 → 去重/过滤 → tags */
+  const tags = useMemo(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const line of lines) {
+      for (const token of line.text.split(/\s+/)) {
+        const t = token.trim()
+        if (!t) continue
+        if (!seen.has(t)) {
+          seen.add(t)
+          result.push(t)
+        }
+      }
+    }
+    return result
+  }, [lines])
+
   function reset() {
     setPreview('')
     setLines([])
-    setChecked(new Set())
-    setEditing({})
+    setSelected(new Set())
+    setManualTag('')
     setCandidates(null)
     setError('')
     if (fileRef.current) fileRef.current.value = ''
@@ -66,9 +84,17 @@ export function OcrModal({
         setLines([])
         return
       }
-      setLines(data.lines ?? [])
-      setChecked(new Set((data.lines ?? []).map((_: unknown, i: number) => i)))
-      setEditing(Object.fromEntries((data.lines ?? []).map((l: OcrLine, i: number) => [i, l.text])))
+      const recognized: OcrLine[] = data.lines ?? []
+      setLines(recognized)
+      // 默认全选识别出的 tag
+      const all = new Set<string>()
+      for (const line of recognized) {
+        for (const token of line.text.split(/\s+/)) {
+          const t = token.trim()
+          if (t) all.add(t)
+        }
+      }
+      setSelected(all)
     } catch {
       setError('识别失败，请重试')
     } finally {
@@ -76,10 +102,26 @@ export function OcrModal({
     }
   }
 
+  function toggleTag(tag: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
+      return next
+    })
+  }
+
+  function addManualTag() {
+    const t = manualTag.trim()
+    if (!t) return
+    setSelected((prev) => new Set(prev).add(t))
+    setManualTag('')
+  }
+
   async function searchLcsc() {
-    const keywords = [...checked].map((i) => (editing[i] ?? lines[i]?.text ?? '').trim()).filter(Boolean)
+    const keywords = [...selected]
     if (!keywords.length) {
-      setError('请至少勾选一个关键词')
+      setError('请至少选择一个关键词')
       return
     }
     setSearching(true)
@@ -107,15 +149,6 @@ export function OcrModal({
     }
   }
 
-  function toggle(i: number) {
-    setChecked((prev) => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-  }
-
   return (
     <Modal open={open} title="拍照识别入库" onClose={() => { reset(); onClose() }}>
       <div className="space-y-4">
@@ -141,28 +174,47 @@ export function OcrModal({
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        {/* 识别结果：勾选 + 可编辑 */}
-        {lines.length > 0 && (
-          <div className="space-y-2">
+        {/* 识别结果 → tags */}
+        {tags.length > 0 && (
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-neutral-500">识别到 {lines.length} 行，勾选要搜索的关键词：</p>
+              <p className="text-sm text-neutral-500">
+                识别出 <span className="font-medium">{lines.length}</span> 行，点击 tag 选择搜索关键词：
+              </p>
               <Button size="sm" variant="secondary" onClick={searchLcsc} disabled={searching}>
-                {searching ? '搜索中…' : '搜索立创'}
+                {searching ? '搜索中…' : `搜索立创（${selected.size}）`}
               </Button>
             </div>
-            <div className="max-h-48 space-y-1 overflow-y-auto">
-              {lines.map((line, i) => (
-                <label key={i} className="flex cursor-pointer items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm hover:bg-neutral-50">
-                  <input type="checkbox" checked={checked.has(i)} onChange={() => toggle(i)} className="accent-blue-600" />
-                  <input
-                    value={editing[i] ?? line.text}
-                    onChange={(e) => setEditing((prev) => ({ ...prev, [i]: e.target.value }))}
-                    onClick={(e) => e.stopPropagation()}
-                    className="min-w-0 flex-1 bg-transparent outline-none"
-                  />
-                  <span className="shrink-0 text-xs text-neutral-400">{Math.round(line.score * 100)}%</span>
-                </label>
-              ))}
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((tag) => {
+                const active = selected.has(tag)
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className={`rounded-full border px-2.5 py-1 font-mono text-xs transition ${
+                      active
+                        ? 'border-blue-500 bg-blue-600 text-white'
+                        : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
+            </div>
+            {/* 手动添加关键词 */}
+            <div className="flex gap-2">
+              <Input
+                value={manualTag}
+                onChange={(e) => setManualTag(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addManualTag()}
+                placeholder="手动添加关键词（如 GRM188R71C104KA01D）"
+                className="flex-1"
+              />
+              <Button variant="secondary" onClick={addManualTag} disabled={!manualTag.trim()}>
+                + 添加
+              </Button>
             </div>
           </div>
         )}
@@ -193,9 +245,7 @@ export function OcrModal({
         )}
 
         {candidates && candidates.length > 0 && (
-          <p className="text-xs text-neutral-400">
-            点击元件进入入库确认（数量默认为 1）
-          </p>
+          <p className="text-xs text-neutral-400">点击元件进入入库确认（数量默认为 1）</p>
         )}
       </div>
     </Modal>
