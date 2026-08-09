@@ -4,12 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Input, Label, Modal, Badge } from './ui'
 import { QrScanModal } from './QrScanModal'
 import { OcrModal } from './OcrModal'
+import { SearchResultsModal } from './SearchResultsModal'
 import { parseLcscQrCode } from '@/lib/qr'
 import type { ComponentDetail } from '@/lib/lcsc'
 
-type Step = 'input' | 'confirm'
-type QueryMode = 'lookup' | 'search'
-
+/**
+ * 元件入库弹窗。
+ * 一个输入框智能判断：C 编号 → 精确查询立创；其他关键词 → 打开独立搜索结果窗口（无限滚动）。
+ * 另有扫码（立创料盘二维码）与拍照识别（OCR）两条通道。
+ */
 export function InboundModal({
   open,
   initialPartNumber,
@@ -21,32 +24,34 @@ export function InboundModal({
   onClose: () => void
   onDone: (partNumber: string) => void
 }) {
-  const [step, setStep] = useState<Step>('input')
-  const [queryMode, setQueryMode] = useState<QueryMode>('lookup')
+  const [step, setStep] = useState<'input' | 'confirm'>('input')
   const [keyword, setKeyword] = useState(initialPartNumber ?? '')
   const [detail, setDetail] = useState<ComponentDetail | null>(null)
-  const [candidates, setCandidates] = useState<ComponentDetail[] | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [qrOpen, setQrOpen] = useState(false)
   const [ocrOpen, setOcrOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const reset = useCallback(() => {
     setStep('input')
-    setQueryMode('lookup')
     setKeyword(initialPartNumber ?? '')
     setDetail(null)
-    setCandidates(null)
     setQuantity(1)
     setNote('')
     setError('')
     setQrOpen(false)
     setOcrOpen(false)
+    setSearchOpen(false)
   }, [initialPartNumber])
 
-  // 打开弹窗且带初始编号（列表页行内入库 / OCR 选元件）时自动查询详情
+  useEffect(() => {
+    if (open) reset()
+  }, [open, reset])
+
+  // 打开弹窗且带初始编号（列表页行内入库 / OCR / 扫码选中）时自动查询详情
   useEffect(() => {
     if (open && initialPartNumber) {
       setKeyword(initialPartNumber)
@@ -54,10 +59,6 @@ export function InboundModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPartNumber])
-
-  useEffect(() => {
-    if (open) reset()
-  }, [open, reset])
 
   async function lookup(pn: string) {
     setLoading(true)
@@ -79,22 +80,15 @@ export function InboundModal({
     }
   }
 
-  async function search(k: string) {
-    setLoading(true)
+  /** 单输入框智能判断：C 编号 → 精确查询；其他 → 打开搜索结果窗口 */
+  function submitKeyword() {
+    const kw = keyword.trim()
+    if (!kw) return
     setError('')
-    try {
-      const res = await fetch(`/api/lcsc/search?k=${encodeURIComponent(k)}&page=1`)
-      const data = await res.json()
-      if (!res.ok || !data.items?.length) {
-        setError(data.error || '没有匹配结果')
-        setCandidates([])
-        return
-      }
-      setCandidates(data.items)
-    } catch {
-      setError('搜索失败，请检查网络')
-    } finally {
-      setLoading(false)
+    if (/^C\d+$/i.test(kw)) {
+      void lookup(kw)
+    } else {
+      setSearchOpen(true)
     }
   }
 
@@ -126,13 +120,7 @@ export function InboundModal({
     }
   }
 
-  const pickCandidate = (item: ComponentDetail) => {
-    setDetail(item)
-    setCandidates(null)
-    setStep('confirm')
-  }
-
-  /** 扫码结果 → 解析 → 编号查详情（预填数量）/ 仅 MPN 则关键词搜索 */
+  /** 扫码结果 → 解析 → 编号查详情（预填数量）/ 仅 MPN 则打开搜索窗口 */
   const handleQrDecoded = useCallback((text: string) => {
     setQrOpen(false)
     const parsed = parseLcscQrCode(text)
@@ -141,14 +129,13 @@ export function InboundModal({
       return
     }
     setError('')
-    setQueryMode('lookup')
     if (parsed.partNumber) {
       if (parsed.qty) setQuantity(parsed.qty)
       setKeyword(parsed.partNumber)
       void lookup(parsed.partNumber)
     } else if (parsed.mpn) {
       setKeyword(parsed.mpn)
-      void search(parsed.mpn)
+      setSearchOpen(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -158,82 +145,37 @@ export function InboundModal({
       {step === 'input' && (
         <div className="space-y-4">
           <div>
-            <Label>立创编号 / 厂商型号（MPN）</Label>
+            <Label>立创编号 / 型号 / 关键词</Label>
             <div className="flex gap-2">
               <Input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && lookup(keyword)}
-                placeholder="如 C14663 或 GRM188R71C104KA01D"
+                onKeyDown={(e) => e.key === 'Enter' && submitKeyword()}
+                placeholder="C 编号精确查；其他自动搜索立创"
                 autoFocus
               />
-              <Button onClick={() => lookup(keyword)} disabled={loading || !keyword.trim()}>
+              <Button onClick={submitKeyword} disabled={loading || !keyword.trim()}>
                 {loading ? '查询中…' : '查询'}
               </Button>
-              <Button variant="secondary" onClick={() => setQrOpen(true)} title="扫描立创二维码">
+              <Button variant="secondary" onClick={() => setQrOpen(true)} title="扫描立创料盘二维码">
                 扫码
-              </Button>
-            </div>
-            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-neutral-400">
-            <span className="h-px flex-1 bg-neutral-200" />
-            或按关键词搜索
-            <span className="h-px flex-1 bg-neutral-200" />
-          </div>
-
-          <div>
-            <Label>关键词搜索（立创）</Label>
-            <div className="flex gap-2">
-              <Input
-                value={queryMode === 'search' ? keyword : ''}
-                placeholder="输入关键词后点搜索，如 0402 电容"
-                onChange={(e) => {
-                  setQueryMode('search')
-                  setKeyword(e.target.value)
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && search(keyword)}
-              />
-              <Button variant="secondary" onClick={() => search(keyword)} disabled={loading || !keyword.trim()}>
-                搜索
               </Button>
               <Button variant="secondary" onClick={() => setOcrOpen(true)} title="拍照识别元件丝印/标签">
                 拍照识别
               </Button>
             </div>
+            <p className="mt-1 text-xs text-neutral-400">
+              输入 C 开头编号（如 C14663）直接查详情；输入型号或关键词打开搜索结果窗口
+            </p>
+            {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
           </div>
-
-          {candidates && (
-            <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-neutral-200">
-              {candidates.length === 0 ? (
-                <p className="p-3 text-sm text-neutral-400">无匹配结果</p>
-              ) : (
-                candidates.map((c) => (
-                  <button
-                    key={c.partNumber}
-                    onClick={() => pickCandidate(c)}
-                    className="flex w-full items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-blue-50"
-                  >
-                    <span className="min-w-0">
-                      <span className="font-mono text-xs text-blue-600">{c.partNumber}</span>
-                      <span className="ml-2 truncate">{c.name}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-neutral-400">
-                      {c.brand} · {c.packageName} · ¥{c.price ?? '-'}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
         </div>
       )}
 
       {step === 'confirm' && detail && (
         <div className="space-y-4">
           <div className="flex gap-3 rounded-lg border border-neutral-200 p-3">
-            {detail.imageUrl && (
+            {detail.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={detail.imageUrl}
@@ -241,6 +183,8 @@ export function InboundModal({
                 className="h-16 w-16 shrink-0 rounded object-contain"
                 referrerPolicy="no-referrer"
               />
+            ) : (
+              <div className="h-16 w-16 shrink-0 rounded bg-neutral-100" />
             )}
             <div className="min-w-0 text-sm">
               <div className="font-medium">{detail.name ?? '未知元件'}</div>
@@ -287,6 +231,17 @@ export function InboundModal({
         </div>
       )}
 
+      {/* 独立搜索结果窗口（无限滚动） */}
+      <SearchResultsModal
+        open={searchOpen}
+        keyword={keyword}
+        onClose={() => setSearchOpen(false)}
+        onPicked={(pn) => {
+          setSearchOpen(false)
+          setKeyword(pn)
+          void lookup(pn)
+        }}
+      />
       <QrScanModal
         open={qrOpen}
         onClose={() => setQrOpen(false)}

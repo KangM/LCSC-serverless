@@ -23,7 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="zh-CN"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* suppressHydrationWarning：浏览器扩展（如缩放/翻译类）会往 <body> 注入 style，触发 hydration 告警 */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
     </html>
   );
 }

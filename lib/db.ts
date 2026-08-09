@@ -9,6 +9,7 @@
  * 「改库存 + 写流水」放进同一个原子批次，保证一致性。
  */
 import 'server-only'
+import path from 'node:path'
 import { createClient, type Client } from '@libsql/client'
 import type { ComponentDetail } from './lcsc'
 
@@ -81,6 +82,14 @@ export interface TransactionQuery {
 
 let db: Client | null = null
 
+/**
+ * 本地库绝对路径：file:/// + path.resolve(process.cwd(), ...)。
+ * libsql 对 file: 相对路径的解析基准不可靠（在 Next/Turbopack 打包环境中
+ * 曾静默指向别处/内存），必须用带盘符的标准 file:/// URL。
+ * process.cwd() 在 Next dev/build（npm script 从项目根运行）与 node 脚本下均为项目根。
+ */
+const LOCAL_DB_PATH = `file:///${path.resolve(process.cwd(), 'data/inventory.db').replace(/\\/g, '/')}`
+
 /** 获取数据库客户端（进程内单例） */
 export function getDb(): Client {
   if (db) return db
@@ -88,7 +97,7 @@ export function getDb(): Client {
   db = createClient(
     url
       ? { url, authToken: process.env.TURSO_AUTH_TOKEN }
-      : { url: 'file:./data/inventory.db' },
+      : { url: LOCAL_DB_PATH },
   )
   return db
 }
@@ -448,12 +457,18 @@ export async function listTransactions(query: TransactionQuery = {}): Promise<Pa
     args.push(query.type)
   }
   if (query.from) {
+    // from 传 UTC ISO（如 2026-08-10T00:00:00.000Z）精确比较；纯日期按 UTC 零点兼容
     where.push('created_at >= ?')
     args.push(query.from)
   }
   if (query.to) {
+    // to 传本地当天 23:59:59.999 转换出的 UTC ISO 即可精确包含当天；
+    // 兼容纯日期（'2026-08-09' 是 '2026-08-09T16:22:23.862Z' 前缀，直接 <= 会漏当天，改用次日零点）
+    const toValue = /^\d{4}-\d{2}-\d{2}$/.test(query.to)
+      ? `${query.to}T23:59:59.999Z`
+      : query.to
     where.push('created_at <= ?')
-    args.push(query.to)
+    args.push(toValue)
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 

@@ -15,6 +15,11 @@ const TYPE_META: Record<string, { label: string; color: 'green' | 'red' | 'amber
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> }
 
+/** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default async function TransactionsPage({ searchParams }: Props) {
   const sp = await searchParams
   const get = (key: string) => {
@@ -22,26 +27,40 @@ export default async function TransactionsPage({ searchParams }: Props) {
     return typeof v === 'string' ? v : undefined
   }
   const type = get('type')
-  const from = get('from')
-  const to = get('to')
+  // 日期默认最近一个月
+  const now = new Date()
+  const monthAgo = new Date(now)
+  monthAgo.setDate(now.getDate() - 30)
+  const defaultFrom = fmtDate(monthAgo)
+  const defaultTo = fmtDate(now)
+  const from = get('from') ?? defaultFrom
+  const to = get('to') ?? defaultTo
   const partNumber = get('pn')
   const page = Number(get('page')) || 1
+
+  // 本地日期 → UTC ISO 边界（与 TransactionFilters 提交一致；已是 ISO 则保留）
+  const toIso = (s: string, endOfDay: boolean) =>
+    s.includes('T') ? s : endOfDay
+      ? new Date(`${s}T23:59:59.999`).toISOString()
+      : new Date(`${s}T00:00:00`).toISOString()
+  const fromIso = toIso(from, false)
+  const toIsoValue = toIso(to, true)
 
   const data = await listTransactions({
     partNumber,
     type: type === 'in' || type === 'out' || type === 'adjust' ? type : undefined,
-    from,
-    to,
+    from: fromIso,
+    to: toIsoValue,
     page,
     pageSize: 30,
   })
 
-  // CSV 导出参数与当前筛选一致
+  // CSV 导出参数与当前筛选一致（含默认日期范围，ISO 边界）
   const exportParams = new URLSearchParams()
   if (partNumber) exportParams.set('pn', partNumber)
   if (type) exportParams.set('type', type)
-  if (from) exportParams.set('from', from)
-  if (to) exportParams.set('to', to)
+  exportParams.set('from', fromIso)
+  exportParams.set('to', toIsoValue)
   const exportQs = exportParams.toString()
 
   return (
@@ -54,7 +73,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
       </div>
 
       <Card>
-        <TransactionFilters initial={{ partNumber: partNumber ?? '', type: type ?? '', from: from ?? '', to: to ?? '' }} />
+        <TransactionFilters initial={{ partNumber: partNumber ?? '', type: type ?? '', from, to }} />
       </Card>
 
       <Card className="!p-0">

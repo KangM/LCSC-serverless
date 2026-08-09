@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, Input, Label, Select } from './ui'
 
 export interface OcrSettings {
@@ -22,6 +22,43 @@ export function SettingsForm({ initial }: { initial: OcrSettings }) {
   const [rapidToken, setRapidToken] = useState(initial.rapidocrToken)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // --- OCR 测试 ---
+  const testFileRef = useRef<HTMLInputElement>(null)
+  const [testImage, setTestImage] = useState('')
+  const [testLines, setTestLines] = useState<Array<{ text: string; score: number }> | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [testError, setTestError] = useState('')
+
+  async function testOcr(file: File) {
+    setTesting(true)
+    setTestError('')
+    setTestLines(null)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(new Error('读取图片失败'))
+        reader.readAsDataURL(file)
+      })
+      setTestImage(dataUrl)
+      const res = await fetch('/api/ocr/recognize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTestError(data.error || '识别失败')
+        return
+      }
+      setTestLines(data.lines ?? [])
+    } catch {
+      setTestError('识别失败，请重试')
+    } finally {
+      setTesting(false)
+    }
+  }
 
   async function save() {
     setSaving(true)
@@ -115,6 +152,45 @@ export function SettingsForm({ initial }: { initial: OcrSettings }) {
       )}
 
       <Button onClick={save} disabled={saving}>{saving ? '保存中…' : '保存设置'}</Button>
+
+      {/* OCR 测试 */}
+      <div className="rounded-lg border border-neutral-200 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-neutral-700">测试 OCR 识别</h3>
+          <input
+            ref={testFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && testOcr(e.target.files[0])}
+          />
+          <Button size="sm" variant="secondary" onClick={() => testFileRef.current?.click()} disabled={testing}>
+            {testing ? '识别中…' : '上传图片测试'}
+          </Button>
+        </div>
+        {testImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={testImage} alt="测试图" className="mb-2 max-h-36 rounded object-contain" />
+        )}
+        {testError && <p className="text-sm text-red-600">{testError}</p>}
+        {testLines && (
+          <div>
+            <p className="mb-1 text-xs text-neutral-500">识别到 {testLines.length} 行：</p>
+            <ul className="space-y-1">
+              {testLines.length === 0 ? (
+                <li className="text-sm text-neutral-400">未识别到文字</li>
+              ) : (
+                testLines.map((l, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2 rounded bg-neutral-50 px-2 py-1 text-sm">
+                    <span className="min-w-0 break-all">{l.text}</span>
+                    <span className="shrink-0 text-xs text-neutral-400">{Math.round(l.score * 100)}%</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

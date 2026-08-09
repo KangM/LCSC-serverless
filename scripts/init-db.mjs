@@ -8,7 +8,11 @@
  * 幂等：schema.sql 全部使用 IF NOT EXISTS。
  */
 import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { createClient } from '@libsql/client'
+
+// 本地库用绝对路径（file:/// + 项目根），避免相对路径解析歧义
+const LOCAL_DB_PATH = `file:///${fileURLToPath(new URL('../data/inventory.db', import.meta.url)).replace(/\\/g, '/')}`
 
 // 轻量加载 .env.local（Next.js 只在自身进程自动加载，纯 Node 脚本需要手动读）
 // 仅当对应变量未被环境变量显式设置时生效。
@@ -36,7 +40,7 @@ await loadDotEnvLocal()
 
 const url = process.env.TURSO_DATABASE_URL
 const client = createClient(
-  url ? { url, authToken: process.env.TURSO_AUTH_TOKEN } : { url: 'file:./data/inventory.db' },
+  url ? { url, authToken: process.env.TURSO_AUTH_TOKEN } : { url: LOCAL_DB_PATH },
 )
 
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8')
