@@ -2,13 +2,37 @@
  * scripts/init-db.mjs — 初始化数据库（建表）
  *
  * 用法:
- *   npm run db:init                     # 本地 file:./data/inventory.db
- *   TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run db:init   # 远程 Turso
+ *   npm run db:init                     # 优先读 .env.local 的 TURSO_*；否则本地 file:./data/inventory.db
+ *   TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run db:init   # 显式传环境变量（优先于 .env.local）
  *
  * 幂等：schema.sql 全部使用 IF NOT EXISTS。
  */
 import { readFile } from 'node:fs/promises'
 import { createClient } from '@libsql/client'
+
+// 轻量加载 .env.local（Next.js 只在自身进程自动加载，纯 Node 脚本需要手动读）
+// 仅当对应变量未被环境变量显式设置时生效。
+async function loadDotEnvLocal() {
+  try {
+    const text = await readFile(new URL('../.env.local', import.meta.url), 'utf8')
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const idx = trimmed.indexOf('=')
+      if (idx <= 0) continue
+      const key = trimmed.slice(0, idx).trim()
+      let value = trimmed.slice(idx + 1).trim()
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1)
+      }
+      if (key && !process.env[key]) process.env[key] = value
+    }
+  } catch {
+    // 无 .env.local 则忽略
+  }
+}
+
+await loadDotEnvLocal()
 
 const url = process.env.TURSO_DATABASE_URL
 const client = createClient(
