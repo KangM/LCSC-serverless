@@ -204,12 +204,12 @@ export function ComponentListClient({
         </div>
       )}
 
-      {/* 表格 */}
-      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      {/* 表格（容器右侧留白保证最后一列不贴边；单元格 padding 全列统一） */}
+      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white pr-6">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
-              <th className="w-10 pl-4 pr-3 py-2.5">
+              <th className="w-10 px-4 py-2.5">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-blue-600" />
               </th>
               <th className="px-4 py-2.5">元件</th>
@@ -217,7 +217,7 @@ export function ComponentListClient({
               <th className="px-4 py-2.5">品牌</th>
               <th className="px-4 py-2.5">封装</th>
               <th className="px-4 py-2.5">分类</th>
-              <th className="pl-4 pr-6 py-2.5 text-right">价格</th>
+              <th className="px-4 py-2.5 text-right">价格</th>
             </tr>
           </thead>
           <tbody>
@@ -228,7 +228,7 @@ export function ComponentListClient({
                 const low = row.threshold > 0 && row.stockQuantity <= row.threshold
                 return (
                   <tr key={row.partNumber} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
-                    <td className="pl-4 pr-3 py-2">
+                    <td className="px-4 py-2">
                       <input
                         type="checkbox"
                         checked={selected.has(row.partNumber)}
@@ -278,7 +278,7 @@ export function ComponentListClient({
                         '-'
                       )}
                     </td>
-                    <td className="pl-4 pr-6 py-2 text-right text-neutral-600">
+                    <td className="px-4 py-2 text-right text-neutral-600">
                       {row.price != null ? `¥${row.price}` : '-'}
                     </td>
                   </tr>
