@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>立创商城数据查询 Demo</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1f2329;
+    --muted: #8a919f;
+    --primary: #1677ff;
+    --border: #e5e6eb;
+    --ok: #00b42a;
+    --err: #f53f3f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .tip { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .toolbar {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  input {
+    flex: 1; min-width: 220px; padding: 10px 12px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px; outline: none;
+  }
+  input:focus { border-color: var(--primary); }
+  select {
+    padding: 10px 12px; font-size: 14px; border: 1px solid var(--border);
+    border-radius: 8px; background: #fff; color: var(--text);
+  }
+  button {
+    padding: 10px 22px; font-size: 14px; border: none; border-radius: 8px;
+    background: var(--primary); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: not-allowed; }
+  #status { font-size: 14px; margin: 4px 0 12px; min-height: 20px; }
+  #status.err { color: var(--err); }
+  #status.ok { color: var(--ok); }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .card-top { display: flex; gap: 14px; }
+  .card-top img {
+    width: 84px; height: 84px; object-fit: contain; border-radius: 8px;
+    background: #f2f3f5; border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .info { flex: 1; min-width: 0; }
+  .title { font-size: 17px; font-weight: 600; margin-bottom: 2px; word-break: break-all; }
+  .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 6px; word-break: break-all; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--text); }
+  .meta b { font-weight: 500; color: var(--muted); margin-right: 2px; }
+  .price { color: #f53f3f; font-weight: 600; }
+  .desc { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .links { margin-top: 8px; display: flex; gap: 14px; font-size: 13px; flex-wrap: wrap; }
+  .links a { color: var(--primary); text-decoration: none; }
+  .links a:hover { text-decoration: underline; }
+  details { margin-top: 10px; }
+  summary { font-size: 13px; color: var(--primary); cursor: pointer; user-select: none; }
+  table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 13px; }
+  td { border: 1px solid var(--border); padding: 6px 10px; }
+  td:first-child { background: #fafbfc; color: var(--muted); width: 30%; }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 40px 0; }
+  #sentinel { height: 1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍 立创商城数据查询 Demo</h1>
+  <p class="tip">
+    输入型号或关键词 → 本地 Node 服务（lcsc-catalog.js）真实请求立创商城并解析展示。
+    支持分页：滚动到底部自动加载下一页并追加结果。
+    请先运行 <code>node server.mjs</code>，再通过 <code>http://localhost:8787</code> 访问本页。
+  </p>
+
+  <div class="toolbar">
+    <input id="kw" placeholder="输入型号或关键词，如 C14663 / GRM188R71C104KA01D / 0402 电容" autocomplete="off">
+    <select id="mode">
+      <option value="search">关键词搜索</option>
+      <option value="lookup">型号精确查询</option>
+    </select>
+    <button id="btn">查询</button>
+  </div>
+  <div id="status"></div>
+  <div id="results"></div>
+  <div id="sentinel"></div>
+</div>
+
+<script>
+  const $ = (s) => document.querySelector(s)
+  const statusEl = $('#status')
+  const resultsEl = $('#results')
+
+  // 分页状态
+  const state = { keyword: '', page: 1, totalPages: 1, totalCount: 0, loading: false }
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text
+    statusEl.className = kind || ''
+  }
+
+  async function fetchPage(page) {
+    const api = '/api/search?k=' + encodeURIComponent(state.keyword) + '&page=' + page
+    const res = await fetch(api)
+    const data = await res.json()
+    if (!data.ok) throw new Error(data.error)
+    return data
+  }
+
+  // 新查询：重置分页状态，加载第 1 页
+  async function run() {
+    const kw = $('#kw').value.trim()
+    if (!kw) { setStatus('请先输入型号或关键词', 'err'); return }
+    state.keyword = kw
+    state.page = 1
+    state.totalPages = 1
+    state.totalCount = 0
+    $('#btn').disabled = true
+    resultsEl.innerHTML = ''
+    setStatus('查询中…（正在请求立创商城）')
+    try {
+      const data = await fetchPage(1)
+      if (data.count === 0) {
+        setStatus('未找到结果（可能是触发了风控、页面结构变更，或该关键词确实无数据）', 'err')
+        return
+      }
+      state.page = data.page
+      state.totalPages = data.totalPages || 1
+      state.totalCount = data.totalCount || 0
+      data.items.forEach(renderCard)
+      updateStatus()
+    } catch (e) {
+      setStatus('查询失败: ' + e.message, 'err')
+    } finally {
+      $('#btn').disabled = false
+    }
+  }
+
+  // 滚动加载下一页并追加
+  async function loadMore() {
+    if (state.loading || state.page >= state.totalPages || state.totalPages === 0) return
+    state.loading = true
+    setStatus(`正在加载第 ${state.page + 1} 页…`)
+    try {
+      const data = await fetchPage(state.page + 1)
+      state.page = data.page
+      state.totalPages = data.totalPages || state.totalPages
+      state.totalCount = data.totalCount || state.totalCount
+      data.items.forEach(renderCard)
+      updateStatus()
+    } catch (e) {
+      setStatus('加载更多失败: ' + e.message, 'err')
+    } finally {
+      state.loading = false
+    }
+  }
+
+  function updateStatus() {
+    const total = state.totalCount > 0 ? `，共 ${state.totalCount} 条` : ''
+    if (state.page >= state.totalPages) {
+      setStatus(`已加载全部 ${state.totalPages} 页${total}`, 'ok')
+    } else {
+      setStatus(`第 ${state.page}/${state.totalPages} 页${total}（继续滚动加载）`, 'ok')
+    }
+  }
+
+  function renderCard(item) {
+    const card = document.createElement('div')
+    card.className = 'card'
+
+    const top = document.createElement('div')
+    top.className = 'card-top'
+
+    if (item.imageUrl) {
+      const img = document.createElement('img')
+      img.src = item.imageUrl
+      img.alt = item.partNumber
+      img.loading = 'lazy'
+      img.onerror = () => img.remove() // 图片挂了就隐藏
+      top.appendChild(img)
+    }
+
+    const info = document.createElement('div')
+    info.className = 'info'
+
+    const titleText = item.name && item.name.trim() ? item.name : item.partNumber
+    const title = document.createElement('div')
+    title.className = 'title'
+    title.textContent = titleText
+    info.appendChild(title)
+
+    // 副标题：立创编号（与标题相同时省略）
+    if (titleText !== item.partNumber) {
+      const sub = document.createElement('div')
+      sub.className = 'subtitle'
+      sub.textContent = item.partNumber
+      info.appendChild(sub)
+    }
+
+    const meta = document.createElement('div')
+    meta.className = 'meta'
+    const fields = [
+      ['品牌', item.brand],
+      ['封装', item.packageName],
+      ['分类', item.category],
+      ['型号(MPN)', item.mpn],
+      ['库存', item.stockQuantity == null ? '—' : item.stockQuantity],
+    ]
+    for (const [label, value] of fields) {
+      if (value == null || value === '') continue
+      const span = document.createElement('span')
+      const b = document.createElement('b')
+      b.textContent = label + ': '
+      span.appendChild(b)
+      span.appendChild(document.createTextNode(String(value)))
+      meta.appendChild(span)
+    }
+    if (item.price != null) {
+      const span = document.createElement('span')
+      const b = document.createElement('b')
+      b.textContent = '价格: '
+      span.appendChild(b)
+      const price = document.createElement('span')
+      price.className = 'price'
+      price.textContent = '¥' + Number(item.price).toFixed(4)
+      span.appendChild(price)
+      meta.appendChild(span)
+    }
+    info.appendChild(meta)
+
+    if (item.description) {
+      const desc = document.createElement('div')
+      desc.className = 'desc'
+      desc.textContent = item.description
+      info.appendChild(desc)
+    }
+
+    if (item.productUrl || item.datasheetUrl) {
+      const links = document.createElement('div')
+      links.className = 'links'
+      if (item.productUrl) {
+        const a = document.createElement('a')
+        a.href = item.productUrl
+        a.target = '_blank'
+        a.rel = 'noopener'
+        a.textContent = '商品详情 ↗'
+        links.appendChild(a)
+      }
+      if (item.datasheetUrl) {
+        const a = document.createElement('a')
+        a.href = item.datasheetUrl
+        a.target = '_blank'
+        a.rel = 'noopener'
+        a.textContent = '数据手册 ↗'
+        links.appendChild(a)
+      }
+      info.appendChild(links)
+    }
+
+    top.appendChild(info)
+    card.appendChild(top)
+
+    // 规格参数表
+    const specs = item.specifications
+    if (specs && Object.keys(specs).length > 0) {
+      const details = document.createElement('details')
+      const summary = document.createElement('summary')
+      summary.textContent = `规格参数（${Object.keys(specs).length} 项）`
+      details.appendChild(summary)
+      const table = document.createElement('table')
+      for (const [key, value] of Object.entries(specs)) {
+        const tr = document.createElement('tr')
+        const tdK = document.createElement('td')
+        tdK.textContent = key
+        const tdV = document.createElement('td')
+        tdV.textContent = value
+        tr.appendChild(tdK)
+        tr.appendChild(tdV)
+        table.appendChild(tr)
+      }
+      details.appendChild(table)
+      card.appendChild(details)
+    }
+
+    resultsEl.appendChild(card)
+  }
+
+  // 底部哨兵：进入视口即加载下一页（无限滚动）
+  const sentinel = $('#sentinel')
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore()
+    }).observe(sentinel)
+  } else {
+    window.addEventListener('scroll', () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 400) loadMore()
+    })
+  }
+
+  $('#btn').addEventListener('click', run)
+  $('#kw').addEventListener('keydown', (e) => { if (e.key === 'Enter') run() })
+  $('#kw').focus()
+</script>
+</body>
+</html>

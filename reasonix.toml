@@ -1,0 +1,2 @@
+[permissions]
+allow = ["Bash=cd /e/Code/LCSC_Vercel && npm ls server-only 2>&1 | head -5; echo \"---node 运行测试---\"; node --input-type=module -e \"import 'server-only'; console.log('server-only import OK')\" 2>&1 | head -5"]
