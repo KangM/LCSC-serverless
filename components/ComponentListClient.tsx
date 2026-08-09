@@ -204,8 +204,8 @@ export function ComponentListClient({
         </div>
       )}
 
-      {/* 表格 */}
-      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      {/* 表格（右侧留 ~100px 空白，避免内容贴边） */}
+      <div className="mr-6 overflow-x-auto rounded-xl border border-neutral-200 bg-white md:mr-[100px]">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
