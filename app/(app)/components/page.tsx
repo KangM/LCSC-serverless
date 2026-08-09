@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { listCategories, listComponents, listPackageNames } from '@/lib/db'
+import { listCategories, listComponents, listPackageNames } from '@/lib/cache'
 import { ComponentListClient } from '@/components/ComponentListClient'
 
 export const metadata: Metadata = { title: '元件列表 · 元件库存管理' }

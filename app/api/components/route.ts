@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { listComponents, stockIn } from '@/lib/db'
+import { listComponents } from '@/lib/cache'
+import { stockIn } from '@/lib/db'
 import { lcsc, type ComponentDetail } from '@/lib/lcsc'
 
 /** GET /api/components?q=&category=&package=&sort=&order=&page=&pageSize= — 元件列表 */

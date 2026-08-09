@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { listTransactions } from '@/lib/db'
+import { listTransactions } from '@/lib/cache'
 
 type Params = { params: Promise<{ partNumber: string }> }
 

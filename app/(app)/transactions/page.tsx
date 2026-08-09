@@ -4,7 +4,7 @@ import { TransactionFilters } from '@/components/TransactionFilters'
 import { TimeText } from '@/components/TimeText'
 import { TxPagination } from '@/components/TxPagination'
 import { TxPartNumberCell } from '@/components/TxPartNumberCell'
-import { listTransactions } from '@/lib/db'
+import { listTransactions } from '@/lib/cache'
 
 export const metadata: Metadata = { title: '流水记录 · 元件库存管理' }
 

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 import { DashboardQuickActions } from '@/components/DashboardQuickActions'
 import { TimeText } from '@/components/TimeText'
-import { dashboardStats, listLowStock, recentTransactions } from '@/lib/db'
+import { dashboardStats, listLowStock, recentTransactions } from '@/lib/cache'
 
 export const metadata: Metadata = { title: '仪表盘 · 元件库存管理' }
 

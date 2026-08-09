@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { ReportCharts } from '@/components/ReportCharts'
-import { dailyFlow, topOutgoing, valueByCategory, valueByPackage } from '@/lib/db'
+import { dailyFlow, topOutgoing, valueByCategory, valueByPackage } from '@/lib/cache'
 
 export const metadata: Metadata = { title: '统计报表 · 元件库存管理' }
 

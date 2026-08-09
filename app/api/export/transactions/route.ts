@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { listTransactions } from '@/lib/db'
+import { listTransactions } from '@/lib/cache'
 
 function csvCell(value: unknown): string {
   const s = value == null ? '' : String(value)

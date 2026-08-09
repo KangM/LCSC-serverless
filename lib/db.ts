@@ -140,6 +140,21 @@ export function getDb(): Client {
   return db
 }
 
+/**
+ * 失效只读查询缓存（lib/cache.ts 的 use cache 条目，tag='inventory'）。
+ * 仅在 Next 运行时生效；纯 Node 脚本（verify-dao.mjs）直跑本文件时
+ * next/cache 解析失败，静默跳过（无缓存可失效）。
+ */
+async function invalidateCache(): Promise<void> {
+  try {
+    const { revalidateTag } = await import('next/cache')
+    // expire: 0 → 立即过期，下次访问同步取新数据（read-your-own-writes 语义）
+    revalidateTag('inventory', { expire: 0 })
+  } catch {
+    // 非 Next 运行时
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 行映射（snake_case → camelCase）
 // ---------------------------------------------------------------------------
@@ -341,6 +356,7 @@ export async function upsertComponentFromLcsc(detail: ComponentDetail): Promise<
       new Date().toISOString(),
     ],
   })
+  await invalidateCache()
 }
 
 /** 修改低库存预警阈值 */
@@ -349,6 +365,7 @@ export async function setThreshold(partNumber: string, threshold: number): Promi
     sql: 'UPDATE components SET threshold = ?, updated_at = ? WHERE part_number = ?',
     args: [Math.max(0, Math.trunc(threshold)), new Date().toISOString(), normalizePartNumber(partNumber)],
   })
+  await invalidateCache()
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +419,7 @@ export async function stockIn(
   })
 
   await client.batch(stmts, 'write')
+  await invalidateCache()
   return (await getComponent(pn))!
 }
 
@@ -440,6 +458,7 @@ export async function stockOut(
     ],
     'write',
   )
+  await invalidateCache()
   return (await getComponent(pn))!
 }
 
@@ -473,6 +492,7 @@ export async function adjustStock(
     ],
     'write',
   )
+  await invalidateCache()
   return (await getComponent(pn))!
 }
 

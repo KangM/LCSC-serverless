@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getDb, upsertComponentFromLcsc } from '@/lib/db'
 import { lcsc } from '@/lib/lcsc'
 
-export const dynamic = 'force-dynamic'
-
 /**
  * GET /api/cron/refresh — 每日定时刷新全部元件信息（vercel.json crons 调用）
  * 鉴权：请求头 Authorization: Bearer $CRON_SECRET（Vercel Cron 自动携带）。

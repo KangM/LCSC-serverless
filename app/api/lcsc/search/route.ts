@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { lcsc } from '@/lib/lcsc'
-import { getComponentsByPartNumbers } from '@/lib/db'
+import { getComponentsByPartNumbers } from '@/lib/cache'
 
 /**
  * GET /api/lcsc/search?k=关键词&page=1 — 立创关键词分页搜索（代理）

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getComponent, setThreshold, upsertComponentFromLcsc } from '@/lib/db'
+import { getComponent } from '@/lib/cache'
+import { setThreshold, upsertComponentFromLcsc } from '@/lib/db'
 import { lcsc } from '@/lib/lcsc'
 
 type Params = { params: Promise<{ partNumber: string }> }

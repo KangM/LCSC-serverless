@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { Badge, Card } from '@/components/ui'
 import { DetailActions } from '@/components/DetailActions'
 import { TimeText } from '@/components/TimeText'
-import { getComponent, listTransactions } from '@/lib/db'
+import { getComponent, listTransactions } from '@/lib/cache'
 
 export const metadata: Metadata = { title: '元件详情 · 元件库存管理' }
 
