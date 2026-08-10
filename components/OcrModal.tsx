@@ -25,6 +25,7 @@ export function OcrModal({
   onSearch: (keywords: string[]) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState('')
   const [compressedInfo, setCompressedInfo] = useState('')
   const [lines, setLines] = useState<OcrLine[]>([])
@@ -58,6 +59,7 @@ export function OcrModal({
     setManualTag('')
     setError('')
     if (fileRef.current) fileRef.current.value = ''
+    if (galleryRef.current) galleryRef.current.value = ''
   }
 
   async function recognize(file: File) {
@@ -141,7 +143,8 @@ export function OcrModal({
     <>
       <Modal open={open} title="拍照识别入库" onClose={() => { reset(); onClose() }}>
         <div className="space-y-4">
-        {/* 拍照/上传 */}
+        {/* 拍照 / 相册：拆成两个入口，避免不同手机浏览器对 capture 的处理不一致
+            （有的忽略 capture 只给文件选择、有的强制开相机） */}
         <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-dashed border-neutral-300 p-4">
           <input
             ref={fileRef}
@@ -151,8 +154,18 @@ export function OcrModal({
             className="hidden"
             onChange={(e) => e.target.files?.[0] && recognize(e.target.files[0])}
           />
+          <input
+            ref={galleryRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && recognize(e.target.files[0])}
+          />
           <Button variant="secondary" onClick={() => fileRef.current?.click()} disabled={recognizing}>
-            {recognizing ? '识别中…' : preview ? '重新拍照/上传' : '拍照或上传图片'}
+            📷 {recognizing ? '识别中…' : preview ? '重新拍照' : '拍照'}
+          </Button>
+          <Button variant="secondary" onClick={() => galleryRef.current?.click()} disabled={recognizing}>
+            🖼️ {recognizing ? '识别中…' : preview ? '重新选择' : '相册/文件'}
           </Button>
         </div>
 
