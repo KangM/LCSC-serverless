@@ -140,8 +140,8 @@ export function ImportClient() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-neutral-500">导入（CSV 批量入库）</h2>
+      <Card className="import_panel">
+        <h2 className="section_title mb-3 text-sm font-semibold text-neutral-500">导入（CSV 批量入库）</h2>
         <div className="flex flex-wrap items-center gap-3">
           <input
             ref={fileRef}
@@ -153,9 +153,9 @@ export function ImportClient() {
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
             选择 CSV 文件
           </Button>
-          {fileName && <span className="text-sm text-neutral-600">{fileName}（{rows.length} 行）</span>}
+          {fileName && <span className="sub_text text-sm text-neutral-600">{fileName}（{rows.length} 行）</span>}
         </div>
-        <p className="mt-2 text-xs text-neutral-400">
+        <p className="hint_text mt-2 text-xs text-neutral-400">
           表头支持：part_number/pc/编号、mpn/型号、quantity/qty/数量。仅填型号时自动到立创搜索补全。
         </p>
         {rows.length > 0 && (
@@ -174,20 +174,20 @@ export function ImportClient() {
       </Card>
 
       {preview && (
-        <Card className="!p-0">
+        <Card className="preview_table !p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
-                <th className="px-4 py-2">#</th>
-                <th className="px-4 py-2">编号 / 型号</th>
-                <th className="px-4 py-2 text-right">数量</th>
-                <th className="px-4 py-2">状态</th>
+                <th className="table_head px-4 py-2">#</th>
+                <th className="table_head px-4 py-2">编号 / 型号</th>
+                <th className="table_head px-4 py-2 text-right">数量</th>
+                <th className="table_head px-4 py-2">状态</th>
               </tr>
             </thead>
             <tbody>
               {preview.map((p) => (
-                <tr key={p.index} className="border-b border-neutral-100 last:border-0">
-                  <td className="px-4 py-1.5 text-neutral-400">{p.index + 1}</td>
+                <tr key={p.index} className="item border-b border-neutral-100 last:border-0">
+                  <td className="sub_text px-4 py-1.5 text-neutral-400">{p.index + 1}</td>
                   <td className="px-4 py-1.5 font-mono">
                     {p.partNumber || p.mpn}
                     {p.partNumber && p.mpn ? ` · ${p.mpn}` : ''}
@@ -195,11 +195,11 @@ export function ImportClient() {
                   <td className="px-4 py-1.5 text-right">{p.quantity}</td>
                   <td className="px-4 py-1.5">
                     {p.status === 'invalid' ? (
-                      <span className="text-red-600">{p.error}</span>
+                      <span className="status_text text-red-600">{p.error}</span>
                     ) : p.exists ? (
-                      <span className="text-blue-600">已存在 · 累加库存</span>
+                      <span className="status_text text-blue-600">已存在 · 累加库存</span>
                     ) : (
-                      <span className="text-green-600">新元件 · 立创补全</span>
+                      <span className="status_text text-green-600">新元件 · 立创补全</span>
                     )}
                   </td>
                 </tr>
@@ -210,8 +210,8 @@ export function ImportClient() {
       )}
 
       {result && (
-        <Card>
-          <h2 className="mb-2 text-sm font-semibold text-neutral-500">导入结果</h2>
+        <Card className="import_result">
+          <h2 className="section_title mb-2 text-sm font-semibold text-neutral-500">导入结果</h2>
           <p className="text-sm">
             ✅ 成功 <span className="font-semibold text-green-600">{result.succeeded.length}</span> 项
             {result.failed.length > 0 && (
@@ -223,29 +223,29 @@ export function ImportClient() {
           {result.failed.length > 0 && (
             <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-red-600">
               {result.failed.map((f, i) => (
-                <li key={i}>{f.partNumber}：{f.error}</li>
+                <li key={i} className="item">{f.partNumber}：{f.error}</li>
               ))}
             </ul>
           )}
         </Card>
       )}
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-neutral-500">导出</h2>
+      <Card className="export_panel">
+        <h2 className="section_title mb-3 text-sm font-semibold text-neutral-500">导出</h2>
         <div className="flex flex-wrap items-end gap-2">
-          <div>
+          <div className="field">
             <Label>开始日期</Label>
             <Input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="w-40" />
           </div>
-          <div>
+          <div className="field">
             <Label>结束日期</Label>
             <Input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="w-40" />
           </div>
-          <a href="/api/export/components">
+          <a className="export_btn" href="/api/export/components">
             <Button variant="secondary" size="sm">导出元件 CSV</Button>
           </a>
           {/* 流水导出按上方时间范围筛选（本地日期 → UTC ISO 边界） */}
-          <a href={`/api/export/transactions?${new URLSearchParams({
+          <a className="export_btn" href={`/api/export/transactions?${new URLSearchParams({
             ...(exportFrom ? { from: toIsoBoundary(exportFrom, false) } : {}),
             ...(exportTo ? { to: toIsoBoundary(exportTo, true) } : {}),
           }).toString()}`}>

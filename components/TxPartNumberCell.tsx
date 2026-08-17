@@ -13,7 +13,7 @@ export function TxPartNumberCell({ partNumber }: { partNumber: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="font-mono text-blue-700 hover:underline"
+        className="part_link font-mono text-blue-700 hover:underline"
       >
         {partNumber}
       </button>

@@ -40,11 +40,11 @@ export function TransactionFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <div>
+      <div className="field">
         <Label>元件编号</Label>
         <Input value={partNumber} onChange={(e) => setPartNumber(e.target.value)} placeholder="如 C14663" className="w-36" />
       </div>
-      <div>
+      <div className="field">
         <Label>类型</Label>
         <Select value={type} onChange={(e) => setType(e.target.value)} className="w-28">
           <option value="">全部</option>
@@ -53,15 +53,15 @@ export function TransactionFilters({
           <option value="adjust">盘点</option>
         </Select>
       </div>
-      <div>
+      <div className="field">
         <Label>开始日期</Label>
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
       </div>
-      <div>
+      <div className="field">
         <Label>结束日期</Label>
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
       </div>
-      <Button onClick={apply}>筛选</Button>
+      <Button className="toolbar_btn" onClick={apply}>筛选</Button>
     </div>
   )
 }

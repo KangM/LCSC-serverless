@@ -73,8 +73,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
       <meta name="x-perf-page" content={`db=${dbMs}ms total=${data.total}`} />
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">流水记录</h1>
-        <a href={`/api/export/transactions${exportQs ? `?${exportQs}` : ''}`}>
+          <h1 className="page_title text-xl font-semibold">流水记录</h1>
+        <a className="export_btn" href={`/api/export/transactions${exportQs ? `?${exportQs}` : ''}`}>
           <Button variant="secondary" size="sm">导出 CSV（当前筛选）</Button>
         </a>
       </div>
@@ -91,14 +91,14 @@ export default async function TransactionsPage({ searchParams }: Props) {
             <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
-                <th className="px-4 py-2.5">时间</th>
-                <th className="px-4 py-2.5">元件</th>
-                <th className="px-4 py-2.5">名称</th>
-                <th className="px-4 py-2.5">类型</th>
-                <th className="px-4 py-2.5 text-right">数量</th>
-                <th className="px-4 py-2.5 text-right">库存变化</th>
-                <th className="px-4 py-2.5">备注</th>
-                <th className="px-4 py-2.5">操作人</th>
+                <th className="table_head px-4 py-2.5">时间</th>
+                <th className="table_head px-4 py-2.5">元件</th>
+                <th className="table_head px-4 py-2.5">名称</th>
+                <th className="table_head px-4 py-2.5">类型</th>
+                <th className="table_head px-4 py-2.5 text-right">数量</th>
+                <th className="table_head px-4 py-2.5 text-right">库存变化</th>
+                <th className="table_head px-4 py-2.5">备注</th>
+                <th className="table_head px-4 py-2.5">操作人</th>
               </tr>
             </thead>
             <tbody>
@@ -106,8 +106,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
                 const meta = TYPE_META[t.type]
                 const sign = t.type === 'out' ? '-' : t.type === 'in' ? '+' : t.quantity >= 0 ? '+' : ''
                 return (
-                  <tr key={t.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
-                    <td className="px-4 py-2 text-neutral-500">
+                  <tr key={t.id} className="item border-b border-neutral-100 last:border-0 hover:bg-neutral-50">
+                    <td className="sub_text px-4 py-2 text-neutral-500">
                       <TimeText value={t.createdAt} />
                     </td>
                     <td className="px-4 py-2">
@@ -118,11 +118,11 @@ export default async function TransactionsPage({ searchParams }: Props) {
                     <td className={`px-4 py-2 text-right font-medium ${t.type === 'out' ? 'text-red-600' : t.type === 'in' ? 'text-green-600' : ''}`}>
                       {sign}{t.type === 'adjust' ? Math.abs(t.quantity) : t.quantity}
                     </td>
-                    <td className="px-4 py-2 text-right text-neutral-500">
+                    <td className="sub_text px-4 py-2 text-right text-neutral-500">
                       {t.beforeQty} → {t.afterQty}
                     </td>
-                    <td className="px-4 py-2 text-neutral-600">{t.note ?? ''}</td>
-                    <td className="px-4 py-2 text-neutral-500">{t.operator ?? ''}</td>
+                    <td className="sub_text px-4 py-2 text-neutral-600">{t.note ?? ''}</td>
+                    <td className="sub_text px-4 py-2 text-neutral-500">{t.operator ?? ''}</td>
                   </tr>
                 )
               })}

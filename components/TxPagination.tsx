@@ -19,17 +19,17 @@ function TxPaginationInner({ totalPages }: { totalPages: number }) {
   }
 
   return (
-    <div className="flex items-center justify-center gap-2 pt-1 text-sm">
+    <div className="pagination flex items-center justify-center gap-2 pt-1 text-sm">
       {page > 1 && (
-        <Link href={href(page - 1)} className="rounded-lg border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50">
+        <Link href={href(page - 1)} className="page_link rounded-lg border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50">
           上一页
         </Link>
       )}
-      <span className="text-neutral-500">
+      <span className="page_indicator text-neutral-500">
         {page} / {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={href(page + 1)} className="rounded-lg border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50">
+        <Link href={href(page + 1)} className="page_link rounded-lg border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50">
           下一页
         </Link>
       )}
