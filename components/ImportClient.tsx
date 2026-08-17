@@ -16,6 +16,19 @@ interface PreviewItem extends ImportRow {
   error?: string
 }
 
+/** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** 本地日期 YYYY-MM-DD → UTC ISO 边界（与流水页 TransactionFilters 一致） */
+function toIsoBoundary(date: string, endOfDay: boolean): string {
+  if (date.includes('T')) return date
+  return endOfDay
+    ? new Date(`${date}T23:59:59.999`).toISOString()
+    : new Date(`${date}T00:00:00`).toISOString()
+}
+
 /** 简单 CSV 解析：支持常见列名（part_number/pn/编号, mpn/型号, quantity/qty/数量） */
 function parseCsv(text: string): ImportRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim())
@@ -51,6 +64,13 @@ export function ImportClient() {
   const [result, setResult] = useState<{ succeeded: string[]; failed: Array<{ partNumber: string; error: string }> } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // 流水导出时间范围：默认最近一个月（与流水页默认一致）
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return fmtDate(d)
+  })
+  const [exportTo, setExportTo] = useState(() => fmtDate(new Date()))
 
   function onFile(file: File) {
     setFileName(file.name)
@@ -212,12 +232,24 @@ export function ImportClient() {
 
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-neutral-500">导出</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <Label>开始日期</Label>
+            <Input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="w-40" />
+          </div>
+          <div>
+            <Label>结束日期</Label>
+            <Input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="w-40" />
+          </div>
           <a href="/api/export/components">
             <Button variant="secondary" size="sm">导出元件 CSV</Button>
           </a>
-          <a href="/api/export/transactions">
-            <Button variant="secondary" size="sm">导出流水 CSV</Button>
+          {/* 流水导出按上方时间范围筛选（本地日期 → UTC ISO 边界） */}
+          <a href={`/api/export/transactions?${new URLSearchParams({
+            ...(exportFrom ? { from: toIsoBoundary(exportFrom, false) } : {}),
+            ...(exportTo ? { to: toIsoBoundary(exportTo, true) } : {}),
+          }).toString()}`}>
+            <Button variant="secondary" size="sm">导出流水 CSV（按时间范围）</Button>
           </a>
         </div>
       </Card>

@@ -23,12 +23,12 @@ function csvResponse(filename: string, rows: Array<Array<unknown>>): NextRespons
 export async function GET() {
   const result = await getDb().execute('SELECT * FROM components ORDER BY part_number')
   const rows: Array<Array<unknown>> = [
-    ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'product_url', 'datasheet_url'],
+    ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'product_url', 'datasheet_url', 'updated_at'],
   ]
   for (const r of result.rows) {
     rows.push([
       r.part_number, r.mpn, r.name, r.brand, r.package_name, r.category,
-      r.price, r.stock_quantity, r.threshold, r.product_url, r.datasheet_url,
+      r.price, r.stock_quantity, r.threshold, r.product_url, r.datasheet_url, r.updated_at,
     ])
   }
   return csvResponse('components.csv', rows)
