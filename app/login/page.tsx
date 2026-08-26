@@ -15,11 +15,12 @@ function LoginForm() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    const submittedPassword = new FormData(e.currentTarget as HTMLFormElement).get('password')
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: submittedPassword }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -42,18 +43,20 @@ function LoginForm() {
         <p className="text-sm text-neutral-500">请输入访问密码</p>
       </div>
       <input
+        name="password"
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="密码"
         autoFocus
+        autoComplete="current-password"
         required
         className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
-        disabled={loading || !password}
+        disabled={loading}
         className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? '登录中…' : '登 录'}

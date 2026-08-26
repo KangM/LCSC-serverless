@@ -57,7 +57,7 @@ export default async function TransactionsPage({ searchParams }: Props) {
     pageSize: 30,
   })
   const dbMs = (performance.now() - t0).toFixed(1)
-  console.log(`[perf] page /transactions data ${dbMs}ms total=${data.total} page=${page}`)
+  console.log(`[${new Date().toISOString()}] [perf] page /transactions data ${dbMs}ms total=${data.total} page=${page}`)
 
   // CSV 导出参数与当前筛选一致（含默认日期范围，ISO 边界）
   const exportParams = new URLSearchParams()

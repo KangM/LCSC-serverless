@@ -16,7 +16,7 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value
   const tAuth = performance.now()
   const authed = token ? await verifySessionToken(token) : false
-  console.log(`[perf] proxy auth ${(performance.now() - tAuth).toFixed(1)}ms token=${token ? 'yes' : 'no'}`)
+  console.log(`[${new Date().toISOString()}] [perf] proxy auth ${(performance.now() - tAuth).toFixed(1)}ms token=${token ? 'yes' : 'no'}`)
   const { pathname } = request.nextUrl
 
   // 已登录访问登录页 → 回首页
@@ -31,7 +31,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  console.log(`[perf] proxy total ${(performance.now() - t0).toFixed(1)}ms ${pathname}`)
+  console.log(`[${new Date().toISOString()}] [perf] proxy total ${(performance.now() - t0).toFixed(1)}ms ${pathname}`)
   const res = NextResponse.next()
   res.headers.set('X-Perf-Proxy-Ms', (performance.now() - t0).toFixed(1))
   return res
