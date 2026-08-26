@@ -407,6 +407,17 @@ export async function stockIn(
   const pn = normalizePartNumber(partNumber)
   const qty = Math.max(1, Math.trunc(quantity))
   const client = getDb()
+  const referenceDesignator = options.referenceDesignator?.trim() || null
+
+  if (referenceDesignator) {
+    const existingReference = await client.execute({
+      sql: 'SELECT 1 FROM transactions WHERE reference_designator = ? COLLATE NOCASE LIMIT 1',
+      args: [referenceDesignator],
+    })
+    if (existingReference.rows.length > 0) {
+      throw new Error(`位号已被占用：${referenceDesignator}`)
+    }
+  }
 
   const existing = await getComponent(pn)
   const stmts: Parameters<Client['batch']>[0] = []
@@ -442,7 +453,7 @@ export async function stockIn(
           ) VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       pn, qty, beforeQty, beforeQty + qty,
-      options.referenceDesignator?.trim() || null,
+      referenceDesignator,
       options.purchasePrice ?? null,
       options.note ?? null, options.operator ?? null,
     ],

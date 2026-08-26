@@ -73,6 +73,13 @@ if (!transactionColumns.has('purchase_price')) {
   await client.execute('ALTER TABLE transactions ADD COLUMN purchase_price REAL')
 }
 
+// 位号是物理存储位置，非空时必须全局唯一（不区分大小写）。
+await client.execute(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_reference_designator
+  ON transactions(reference_designator COLLATE NOCASE)
+  WHERE reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+`)
+
 // 校验三张表都建好了
 const check = await client.execute(
   "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('components','transactions','settings') ORDER BY name",
