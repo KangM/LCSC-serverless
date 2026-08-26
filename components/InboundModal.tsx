@@ -31,6 +31,7 @@ export function InboundModal({
   const [quantity, setQuantity] = useState(1)
   const [referenceDesignator, setReferenceDesignator] = useState('')
   const [purchasePrice, setPurchasePrice] = useState('')
+  const [priceMode, setPriceMode] = useState<'unit' | 'total'>('unit')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -46,6 +47,7 @@ export function InboundModal({
     setQuantity(1)
     setReferenceDesignator('')
     setPurchasePrice('')
+    setPriceMode('unit')
     setNote('')
     setError('')
     setQrOpen(false)
@@ -101,6 +103,12 @@ export function InboundModal({
   }
 
   async function submit() {
+    const enteredPrice = purchasePrice === '' ? undefined : Number(purchasePrice)
+    const unitPurchasePrice = enteredPrice == null
+      ? undefined
+      : priceMode === 'total'
+        ? Math.round((enteredPrice / Math.max(1, quantity)) * 100) / 100
+        : enteredPrice
     setLoading(true)
     setError('')
     try {
@@ -111,7 +119,7 @@ export function InboundModal({
           partNumber: detail!.partNumber,
           quantity,
           referenceDesignator: referenceDesignator || undefined,
-          purchasePrice: purchasePrice === '' ? undefined : Number(purchasePrice),
+          purchasePrice: unitPurchasePrice,
           note: note || undefined,
           detail,
         }),
@@ -244,15 +252,38 @@ export function InboundModal({
               <Input value={referenceDesignator} onChange={(e) => setReferenceDesignator(e.target.value)} placeholder="如 R12、C3-C6" />
             </div>
             <div>
-              <Label>入手价格（元/个，可选）</Label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <Label>入手价格（{priceMode === 'unit' ? '元/个' : '总价'}，可选）</Label>
+                <div className="flex shrink-0 overflow-hidden rounded-md border border-neutral-300 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPriceMode('unit')}
+                    className={`px-2 py-1 ${priceMode === 'unit' ? 'bg-blue-600 text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'}`}
+                  >
+                    单价
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceMode('total')}
+                    className={`border-l border-neutral-300 px-2 py-1 ${priceMode === 'total' ? 'bg-blue-600 text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'}`}
+                  >
+                    总价
+                  </button>
+                </div>
+              </div>
               <Input
                 type="number"
                 min={0}
                 step="any"
                 value={purchasePrice}
                 onChange={(e) => setPurchasePrice(e.target.value)}
-                placeholder="如 0.2787"
+                placeholder={priceMode === 'unit' ? '如 0.2787' : '如 27.87'}
               />
+              {priceMode === 'total' && purchasePrice !== '' && Number.isFinite(Number(purchasePrice)) && (
+                <p className="mt-1 text-xs text-neutral-500">
+                  折合单价：¥{(Math.round((Number(purchasePrice) / Math.max(1, quantity)) * 100) / 100).toFixed(2)} / 个
+                </p>
+              )}
             </div>
             <div>
               <Label>备注（可选）</Label>
