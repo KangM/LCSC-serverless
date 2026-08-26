@@ -130,11 +130,11 @@ export function getDb(): Client {
       try {
         const r = await (raw[method] as (...a: unknown[]) => Promise<unknown>)(...args)
         const ms = (performance.now() - t0).toFixed(1)
-        console.log(`[${new Date().toISOString()}] [perf] db.${method} ${ms}ms ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
+        console.log(`[perf] db.${method} ${ms}ms ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
         return r
       } catch (e) {
         const ms = (performance.now() - t0).toFixed(1)
-        console.log(`[${new Date().toISOString()}] [perf] db.${method} ${ms}ms FAIL ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
+        console.log(`[perf] db.${method} ${ms}ms FAIL ${sqlOf(args[0]).slice(0, 120).replace(/\s+/g, ' ')}`)
         throw e
       }
     }
