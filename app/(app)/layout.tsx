@@ -8,8 +8,8 @@ import { AppShell } from './app-shell'
 export const instant = false
 
 function buildInfo() {
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA
-  const message = process.env.VERCEL_GIT_COMMIT_MESSAGE
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? process.env.GIT_COMMIT_SHA
+  const message = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? process.env.GIT_COMMIT_MESSAGE
   return {
     commit: sha ? sha.slice(0, 7) : null,
     message: message?.trim() || null,

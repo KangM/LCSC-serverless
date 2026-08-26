@@ -1,9 +1,9 @@
 # 元件库存管理（LCSC Inventory）
 
-基于**立创商城（LCSC）数据**的个人库存管理系统，部署在 **Vercel**。
+基于**立创商城（LCSC）数据**的个人库存管理系统，推荐以 **Docker + 本地 SQLite** 部署。
 
 - 元件信息来自 [`js-port/lcsc-catalog.js`](js-port/)（立创抓取 + 解析，服务端执行，浏览器不受 CORS 限制）
-- 数据存 **Turso（libSQL）**，本地开发零配置（自动用 `file:./data/inventory.db`）
+- Docker 数据存宿主机持久卷中的 **SQLite**；可从 Turso 一次性迁移历史数据
 - 单密码认证（HMAC 签名 session cookie，`proxy.ts` 全局保护）
 
 ## 功能
@@ -29,6 +29,9 @@ cp .env.example .env.local   # 按需改 APP_PASSWORD
 npm run dev          # http://localhost:3000（登录密码默认 test123 需自行修改）
 ```
 
+本地 SQLite 默认路径是 `data/inventory.db`。可用 `DATABASE_MODE=sqlite` 和
+`SQLITE_DATABASE_PATH=/绝对路径/inventory.db` 显式指定路径。
+
 验证脚本（开发期）：
 
 ```bash
@@ -36,7 +39,64 @@ node --conditions=react-server scripts/verify-dao.mjs   # DAO 冒烟
 node --conditions=react-server scripts/verify-lcsc.mjs  # 真实抓取立创
 ```
 
-## 部署到 Vercel
+## Docker 部署（推荐）
+
+要求：Docker Engine 与 Docker Compose。SQLite 文件通过 `./data:/data` 挂载在宿主机，
+不要删除或替换该目录。
+
+1. 在项目根目录创建 `.env`：
+
+   ```env
+   APP_PASSWORD=your-password
+   SESSION_SECRET=replace-with-a-random-64-char-secret
+   CRON_SECRET=replace-with-a-second-random-secret
+   ```
+
+2. 启动应用：
+
+   ```bash
+   GIT_COMMIT_SHA=$(git rev-parse HEAD) \
+   GIT_COMMIT_MESSAGE="$(git log -1 --pretty=%s)" \
+   docker compose up -d --build
+   ```
+
+   PowerShell：
+
+   ```powershell
+   $env:GIT_COMMIT_SHA = git rev-parse HEAD
+   $env:GIT_COMMIT_MESSAGE = git log -1 --pretty=%s
+   docker compose up -d --build
+   ```
+
+   这两项仅用于网站侧边栏显示当前镜像对应的提交信息。
+
+3. 首次启动会自动在 `/data/inventory.db` 建表。健康检查地址为
+   `http://localhost:3000/api/health`。
+
+4. 需要每日刷新立创数据时，额外启动可选的定时服务：
+
+   ```bash
+   docker compose --profile cron up -d
+   ```
+
+   定时器使用容器的 `Asia/Shanghai` 时区，每天 02:30 调用一次受 `CRON_SECRET`
+   保护的刷新接口。
+
+### Turso 数据迁移
+
+先停止写入，选择一个**不存在或为空**的目标 SQLite 路径，然后执行：
+
+```bash
+TURSO_DATABASE_URL=libsql://... TURSO_AUTH_TOKEN=... \
+SQLITE_DATABASE_PATH=./data/inventory.db npm run db:migrate:turso
+```
+
+迁移脚本复制 `components`、`transactions` 和 `settings`，保留流水 ID 与时间戳。
+若目标库已有任一业务表数据，脚本会拒绝执行，避免覆盖。
+
+SQLite 为单机文件数据库：只运行一个应用副本，定期备份宿主机 `data/inventory.db`。
+
+## 部署到 Vercel（旧路径）
 
 1. **Turso 建库**：https://turso.tech → Create Database，拿到 URL 与 token。
 2. **Vercel 导入项目**（Framework Preset 选 Next.js），配置环境变量：
@@ -64,6 +124,6 @@ node --conditions=react-server scripts/verify-lcsc.mjs  # 真实抓取立创
 ## 说明与限制
 
 - 立创商城无官方 API，数据通过页面/接口抓取：高频调用可能触发风控。
-  项目已内置**串行限速（800ms）+ 24h 内存缓存 + 失败回退数据库缓存**，入库时抓取、浏览时读库。
+  项目以 800ms 启动间隔限速，但不会等待前一个立创网络请求完成；上游超时、验证页、HTTP 和响应格式错误均会返回可诊断的 502。
 - 立创前端改版可能破坏解析（`__NEXT_DATA__` 结构），届时需同步更新 `js-port/lcsc-catalog.js`。
 - OCR 的 API Key 明文存数据库 `settings` 表（单密码个人项目，注意保管密码）。

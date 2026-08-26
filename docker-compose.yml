@@ -1,0 +1,37 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
+        GIT_COMMIT_MESSAGE: ${GIT_COMMIT_MESSAGE:-}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_MODE: sqlite
+      SQLITE_DATABASE_PATH: /data/inventory.db
+      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+      PERF_LOG: ${PERF_LOG:-1}
+    volumes:
+      - ./data:/data
+
+  cron:
+    profiles: ["cron"]
+    build:
+      context: .
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
+        GIT_COMMIT_MESSAGE: ${GIT_COMMIT_MESSAGE:-}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ["node", "scripts/cron-refresh.mjs"]
+    environment:
+      DATABASE_MODE: sqlite
+      SQLITE_DATABASE_PATH: /data/inventory.db
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+      CRON_TARGET_URL: http://app:3000/api/cron/refresh

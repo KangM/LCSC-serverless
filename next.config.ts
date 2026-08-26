@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // @libsql/client 带原生绑定（libsql），必须作为服务端外部包加载：
   // 若被打进 Turbopack bundle，原生 .node 绑定会失效，
   // file: 本地库会静默退化成内存库（dev 重启数据即丢）。

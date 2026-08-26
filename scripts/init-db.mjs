@@ -7,12 +7,12 @@
  *
  * 幂等：schema.sql 全部使用 IF NOT EXISTS。
  */
-import { readFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
+import { mkdir, readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createClient } from '@libsql/client'
 
-// 本地库用绝对路径（file:/// + 项目根），避免相对路径解析歧义
-const LOCAL_DB_PATH = `file:///${fileURLToPath(new URL('../data/inventory.db', import.meta.url)).replace(/\\/g, '/')}`
+const DEFAULT_SQLITE_PATH = fileURLToPath(new URL('../data/inventory.db', import.meta.url))
 
 // 轻量加载 .env.local（Next.js 只在自身进程自动加载，纯 Node 脚本需要手动读）
 // 仅当对应变量未被环境变量显式设置时生效。
@@ -38,9 +38,14 @@ async function loadDotEnvLocal() {
 
 await loadDotEnvLocal()
 
-const url = process.env.TURSO_DATABASE_URL
+const useTurso = process.env.DATABASE_MODE === 'turso'
+  || (process.env.DATABASE_MODE !== 'sqlite' && Boolean(process.env.TURSO_DATABASE_URL))
+const sqlitePath = path.resolve(process.env.SQLITE_DATABASE_PATH ?? DEFAULT_SQLITE_PATH)
+if (!useTurso) await mkdir(path.dirname(sqlitePath), { recursive: true })
 const client = createClient(
-  url ? { url, authToken: process.env.TURSO_AUTH_TOKEN } : { url: LOCAL_DB_PATH },
+  useTurso
+    ? { url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN }
+    : { url: pathToFileURL(sqlitePath).href },
 )
 
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8')
@@ -61,5 +66,5 @@ for (const stmt of statements) {
 const check = await client.execute(
   "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('components','transactions','settings') ORDER BY name",
 )
-console.log('已建表:', check.rows.map((r) => r.name).join(', '))
+console.log(`已建表（${useTurso ? 'Turso' : sqlitePath}）:`, check.rows.map((r) => r.name).join(', '))
 client.close()

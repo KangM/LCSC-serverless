@@ -1,15 +1,17 @@
 /**
  * lib/db.ts — Turso / libSQL 数据访问层（服务端专用）
  *
- * 数据库连接：优先读环境变量 TURSO_DATABASE_URL + TURSO_AUTH_TOKEN（Vercel 生产），
- * 缺省回退本地 file:./data/inventory.db（本地开发，无需任何配置）。
+ * 数据库连接：DATABASE_MODE=sqlite 时使用 SQLITE_DATABASE_PATH；未指定时若有
+ * TURSO_DATABASE_URL 则使用 Turso，否则回退到本地 data/inventory.db。
  * 两套都是 libsql 协议，代码完全一致。
  *
  * 库存操作（stockIn / stockOut / adjust）通过 client.batch 把
  * 「改库存 + 写流水」放进同一个原子批次，保证一致性。
  */
 import 'server-only'
+import { mkdirSync } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createClient, type Client } from '@libsql/client'
 import type { ComponentDetail } from './lcsc'
 
@@ -84,12 +86,17 @@ export interface TransactionQuery {
 let db: Client | null = null
 
 /**
- * 本地库绝对路径：file:/// + path.resolve(process.cwd(), ...)。
- * libsql 对 file: 相对路径的解析基准不可靠（在 Next/Turbopack 打包环境中
- * 曾静默指向别处/内存），必须用带盘符的标准 file:/// URL。
- * process.cwd() 在 Next dev/build（npm script 从项目根运行）与 node 脚本下均为项目根。
+ * SQLite 必须使用绝对 file URL；相对路径在 Next 打包环境中可能被错误解析。
+ * Docker 将 SQLITE_DATABASE_PATH 指向挂载卷中的 /data/inventory.db。
  */
-const LOCAL_DB_PATH = `file:///${path.resolve(process.cwd(), 'data/inventory.db').replace(/\\/g, '/')}`
+const sqlitePath = path.resolve(process.env.SQLITE_DATABASE_PATH ?? path.join(process.cwd(), 'data/inventory.db'))
+const LOCAL_DB_URL = pathToFileURL(sqlitePath).href
+
+function isTursoMode(): boolean {
+  if (process.env.DATABASE_MODE === 'sqlite') return false
+  if (process.env.DATABASE_MODE === 'turso') return true
+  return Boolean(process.env.TURSO_DATABASE_URL)
+}
 
 /**
  * 获取数据库客户端（进程内单例）。
@@ -97,11 +104,12 @@ const LOCAL_DB_PATH = `file:///${path.resolve(process.cwd(), 'data/inventory.db'
  */
 export function getDb(): Client {
   if (db) return db
-  const url = process.env.TURSO_DATABASE_URL
+  const remote = isTursoMode()
+  if (!remote) mkdirSync(path.dirname(sqlitePath), { recursive: true })
   const raw = createClient(
-    url
-      ? { url, authToken: process.env.TURSO_AUTH_TOKEN }
-      : { url: LOCAL_DB_PATH },
+    remote
+      ? { url: process.env.TURSO_DATABASE_URL!, authToken: process.env.TURSO_AUTH_TOKEN }
+      : { url: LOCAL_DB_URL },
   )
   if (process.env.PERF_LOG === '0') {
     db = raw

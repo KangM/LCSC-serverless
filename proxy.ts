@@ -40,6 +40,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   // 负向匹配：排除登录接口与静态资源
   matcher: [
-    '/((?!api/auth/login|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
+    '/((?!api/auth/login|api/health|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)',
   ],
 }
