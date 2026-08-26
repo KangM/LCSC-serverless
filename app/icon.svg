@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 深色圆角背景 -->
+  <rect width="32" height="32" rx="7" fill="#1e293b"/>
+  <!-- 四边引脚（上2 下2 左2 右2） -->
+  <rect x="13" y="3" width="2" height="6" fill="#e2e8f0"/>
+  <rect x="19" y="3" width="2" height="6" fill="#e2e8f0"/>
+  <rect x="13" y="23" width="2" height="6" fill="#e2e8f0"/>
+  <rect x="19" y="23" width="2" height="6" fill="#e2e8f0"/>
+  <rect x="3" y="13" width="6" height="2" fill="#e2e8f0"/>
+  <rect x="3" y="19" width="6" height="2" fill="#e2e8f0"/>
+  <rect x="23" y="13" width="6" height="2" fill="#e2e8f0"/>
+  <rect x="23" y="19" width="6" height="2" fill="#e2e8f0"/>
+  <!-- 芯片主体 -->
+  <rect x="9" y="9" width="14" height="14" rx="2" fill="#e2e8f0"/>
+  <!-- 引脚 1 标记点（芯片惯例） -->
+  <circle cx="12.5" cy="12.5" r="1.6" fill="#1e293b" opacity="0.45"/>
+  <!-- 芯片内部装饰点 -->
+  <rect x="17" y="17" width="3" height="3" rx="0.5" fill="#1e293b" opacity="0.35"/>
+</svg>
