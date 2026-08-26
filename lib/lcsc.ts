@@ -15,6 +15,18 @@ import type { ComponentDetail, PagedResult } from '../js-port/lcsc-catalog.js'
 
 export type { ComponentDetail, PagedResult }
 
+/** 单次立创查询的服务端耗时拆分，供 API 的 Server-Timing 响应头使用。 */
+export interface LcscTiming {
+  cache: 'hit' | 'miss'
+  queueMs: number
+  fetchMs: number
+}
+
+export interface TimedLcscResult<T> {
+  value: T
+  timing: LcscTiming
+}
+
 // ---------------------------------------------------------------------------
 // 配置
 // ---------------------------------------------------------------------------
@@ -72,10 +84,20 @@ async function throttle(): Promise<void> {
 }
 
 /** 在限速队列中执行一次真实网络请求 */
-function throttled<T>(task: () => Promise<T>): Promise<T> {
+function throttled<T>(task: () => Promise<T>): Promise<TimedLcscResult<T>> {
+  const enqueuedAt = performance.now()
   const run = requestChain.then(async () => {
     await throttle()
-    return task()
+    const fetchStartedAt = performance.now()
+    const value = await task()
+    return {
+      value,
+      timing: {
+        cache: 'miss' as const,
+        queueMs: fetchStartedAt - enqueuedAt,
+        fetchMs: performance.now() - fetchStartedAt,
+      },
+    }
   })
   // 链上任何失败都不影响后续请求排队
   requestChain = run.catch(() => undefined)
@@ -96,15 +118,24 @@ class LcscService {
    * 返回 null 表示立创侧未找到或网络失败（调用方应回退数据库缓存）。
    */
   async lookupByPartNumber(partNumber: string): Promise<ComponentDetail | null> {
+    return (await this.lookupByPartNumberTimed(partNumber)).value
+  }
+
+  /** 与 lookupByPartNumber 相同，但额外返回缓存、排队和上游请求耗时。 */
+  async lookupByPartNumberTimed(partNumber: string): Promise<TimedLcscResult<ComponentDetail | null>> {
     const key = partNumber.trim().toUpperCase()
-    if (!key) return null
+    if (!key) {
+      return { value: null, timing: { cache: 'hit', queueMs: 0, fetchMs: 0 } }
+    }
 
     const cached = this.lookupCache.get(key)
-    if (cached !== undefined) return cached
+    if (cached !== undefined) {
+      return { value: cached, timing: { cache: 'hit', queueMs: 0, fetchMs: 0 } }
+    }
 
-    const detail = await throttled(() => this.client.lookupByPartNumber(key))
-    this.lookupCache.set(key, detail, detail ? LOOKUP_TTL_MS : LOOKUP_MISS_TTL_MS)
-    return detail
+    const result = await throttled(() => this.client.lookupByPartNumber(key))
+    this.lookupCache.set(key, result.value, result.value ? LOOKUP_TTL_MS : LOOKUP_MISS_TTL_MS)
+    return result
   }
 
   /**
@@ -112,13 +143,20 @@ class LcscService {
    * 调用方自行决定是否回退。
    */
   async searchPaged(keyword: string, page = 1, pageSize = 30): Promise<PagedResult> {
+    return (await this.searchPagedTimed(keyword, page, pageSize)).value
+  }
+
+  /** 与 searchPaged 相同，但额外返回缓存、排队和上游请求耗时。 */
+  async searchPagedTimed(keyword: string, page = 1, pageSize = 30): Promise<TimedLcscResult<PagedResult>> {
     const key = `${keyword.trim()}|${page}|${pageSize}`
     const cached = this.searchCache.get(key)
-    if (cached !== undefined) return cached
+    if (cached !== undefined) {
+      return { value: cached, timing: { cache: 'hit', queueMs: 0, fetchMs: 0 } }
+    }
 
     const result = await throttled(() => this.client.searchPaged(keyword, page, pageSize))
-    if (result.totalCount > 0) {
-      this.searchCache.set(key, result, SEARCH_TTL_MS)
+    if (result.value.totalCount > 0) {
+      this.searchCache.set(key, result.value, SEARCH_TTL_MS)
     }
     return result
   }
@@ -136,9 +174,9 @@ class LcscService {
   async refreshPartNumber(partNumber: string): Promise<ComponentDetail | null> {
     const key = partNumber.trim().toUpperCase()
     if (!key) return null
-    const detail = await throttled(() => this.client.lookupByPartNumber(key))
-    this.lookupCache.set(key, detail, detail ? LOOKUP_TTL_MS : LOOKUP_MISS_TTL_MS)
-    return detail
+    const result = await throttled(() => this.client.lookupByPartNumber(key))
+    this.lookupCache.set(key, result.value, result.value ? LOOKUP_TTL_MS : LOOKUP_MISS_TTL_MS)
+    return result.value
   }
 }
 

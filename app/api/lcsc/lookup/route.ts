@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { lcsc } from '@/lib/lcsc'
+import { setServerTiming } from '@/lib/server-timing'
 
 /**
  * GET /api/lcsc/lookup?pn=C14663 — 实时/缓存查立创元件详情
@@ -7,12 +8,25 @@ import { lcsc } from '@/lib/lcsc'
  * 未找到或风控返回 404，客户端提示后回退手动关键词搜索。
  */
 export async function GET(request: NextRequest) {
+  const startedAt = performance.now()
   const pn = request.nextUrl.searchParams.get('pn')?.trim()
   if (!pn) return NextResponse.json({ ok: false, error: '缺少参数 pn' }, { status: 400 })
 
-  const item = await lcsc.lookupByPartNumber(pn)
+  const lookup = await lcsc.lookupByPartNumberTimed(pn)
+  const item = lookup.value
   if (!item) {
-    return NextResponse.json({ ok: false, error: '未在立创找到该元件' }, { status: 404 })
+    return setServerTiming(
+      NextResponse.json({ ok: false, error: '未在立创找到该元件' }, { status: 404 }),
+      [
+        { name: 'lcsc_queue', duration: lookup.timing.queueMs },
+        { name: 'lcsc_fetch', duration: lookup.timing.fetchMs, description: lookup.timing.cache },
+        { name: 'total', duration: performance.now() - startedAt },
+      ],
+    )
   }
-  return NextResponse.json({ ok: true, item })
+  return setServerTiming(NextResponse.json({ ok: true, item }), [
+    { name: 'lcsc_queue', duration: lookup.timing.queueMs },
+    { name: 'lcsc_fetch', duration: lookup.timing.fetchMs, description: lookup.timing.cache },
+    { name: 'total', duration: performance.now() - startedAt },
+  ])
 }
