@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDb } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /** CSV 专用转义：含逗号/引号/换行时用引号包裹 */
 function csvCell(value: unknown): string {
   const s = value == null ? '' : String(value)
@@ -15,8 +18,16 @@ function csvResponse(filename: string, rows: Array<Array<unknown>>): NextRespons
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
     },
   })
+}
+
+function timestampedFilename(prefix: string): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  return `${prefix}-${stamp}.csv`
 }
 
 function formatSpecifications(raw: unknown): string[] {
@@ -56,5 +67,5 @@ export async function GET() {
       r.product_url, r.datasheet_url, r.updated_at,
     ])
   }
-  return csvResponse('components.csv', rows)
+  return csvResponse(timestampedFilename('components'), rows)
 }
