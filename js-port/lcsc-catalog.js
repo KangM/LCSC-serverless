@@ -26,10 +26,21 @@ const VERIFICATION_KEY = 'tg09It3*9h'
 const VERIFICATION_TOKENS = ['_xvasu', '_xvtsc', '_xvpfs', '_xvpts']
 const CHROME_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+const LCSC_REQUEST_TIMEOUT_MS = 8_000
 const PACKAGE_PARAMETER_KEYS = [
   '封装', '封装规格', '商品封装', '安装类型',
   'Package', 'Package / Case', 'Case', 'Footprint',
 ]
+
+/** 立创上游失败的可诊断错误。code 仅含稳定的内部分类，不暴露响应内容。 */
+export class LcscUpstreamError extends Error {
+  constructor(code, options = {}) {
+    super(`LCSC upstream failure: ${code}`)
+    this.name = 'LcscUpstreamError'
+    this.code = code
+    this.status = options.status
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 客户端
@@ -127,7 +138,6 @@ export class LcscCatalogClient {
    */
   async searchPaged(keyword, page = 1, pageSize = 30) {
     const data = await this.postSearchQuery(keyword, page, pageSize)
-    if (!data) return emptyPage(page, pageSize)
     const searchResult = asObject(asObject(data.result)?.searchResult)
     const records = asArray(searchResult?.productRecordList) ?? []
     const items = []
@@ -148,7 +158,7 @@ export class LcscCatalogClient {
   /**
    * POST 主站搜索接口，返回原始 JSON（含 203 验证页自动重试）。
    * 请求体字段照搬站点前端（spotFilter/discountFilter 等筛选参数）。
-   * @returns {Promise<object|null>} { code, result: { searchResult: { productRecordList } } }
+   * @returns {Promise<object>} { code, result: { searchResult: { productRecordList } } }
    */
   async postSearchQuery(keyword, page = 1, pageSize = 30) {
     const body = JSON.stringify({
@@ -181,33 +191,51 @@ export class LcscCatalogClient {
       'referer': `${SEARCH_URL}?k=${encodeURIComponent(keyword)}`,
       'User-Agent': CHROME_USER_AGENT,
     }
+    const request = () => this.fetchImpl(SEARCH_API_URL, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(LCSC_REQUEST_TIMEOUT_MS),
+    })
     try {
-      let response = await this.fetchImpl(SEARCH_API_URL, { method: 'POST', headers, body })
+      let response = await request()
       let text = await response.text()
+      if (!response.ok && response.status !== 203) {
+        this.log.warn?.(`[lcsc] POST /query/product HTTP status=${response.status}`)
+        throw new LcscUpstreamError('http', { status: response.status })
+      }
       // 防御：203 验证页或返回 HTML 验证页时，构造验证 Cookie 重试一次
       if (response.status === 203 || !text.trim().startsWith('{')) {
         const cookie = buildVerificationCookie(text)
         if (!cookie) {
-          this.log.warn?.('[lcsc] POST /query/product 验证 Cookie 解析失败')
-          return null
+          this.log.warn?.(`[lcsc] POST /query/product verification status=${response.status} body=${bodyKind(text)}`)
+          throw new LcscUpstreamError('verification', { status: response.status })
         }
         headers['Cookie'] = cookie
-        response = await this.fetchImpl(SEARCH_API_URL, { method: 'POST', headers, body })
+        response = await request()
         text = await response.text()
       }
       if (!response.ok) {
-        this.log.warn?.('[lcsc] POST /query/product HTTP 失败:', response.status)
-        return null
+        this.log.warn?.(`[lcsc] POST /query/product retry HTTP status=${response.status}`)
+        throw new LcscUpstreamError('http', { status: response.status })
       }
-      const data = JSON.parse(text)
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        this.log.warn?.(`[lcsc] POST /query/product invalid JSON status=${response.status} body=${bodyKind(text)}`)
+        throw new LcscUpstreamError('invalid_response', { status: response.status })
+      }
       if (data?.code !== 200) {
-        this.log.warn?.('[lcsc] POST /query/product code != 200:', data?.code, data?.msg)
-        return null
+        this.log.warn?.(`[lcsc] POST /query/product API code=${data?.code ?? '-'} message=${JSON.stringify(data?.msg ?? '')}`)
+        throw new LcscUpstreamError('api', { status: response.status })
       }
       return data
     } catch (error) {
-      this.log.warn?.('[lcsc] POST /query/product 失败:', error)
-      return null
+      if (error instanceof LcscUpstreamError) throw error
+      const code = error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'network'
+      this.log.warn?.(`[lcsc] POST /query/product ${code}: ${error instanceof Error ? error.message : String(error)}`)
+      throw new LcscUpstreamError(code)
     }
   }
 
@@ -590,7 +618,11 @@ function asArray(value) {
   return Array.isArray(value) ? value : null
 }
 
-/** 分页搜索失败时的空结果 */
-function emptyPage(page, pageSize) {
-  return { items: [], page, pageSize, totalCount: 0, totalPages: 0 }
+/** 仅记录响应类别，避免将验证页或业务响应内容写入日志。 */
+function bodyKind(text) {
+  const trimmed = text.trim()
+  if (!trimmed) return 'empty'
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json'
+  if (trimmed.startsWith('<')) return 'html'
+  return 'text'
 }

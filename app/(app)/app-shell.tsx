@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { LogoutButton } from './logout-button'
 
@@ -39,8 +39,25 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /** 响应式外壳：md+ 左侧边栏，md- 顶部栏 + 抽屉菜单 */
-export function AppShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+type BuildInfo = {
+  commit: string | null
+  message: string | null
+}
+
+function BuildInfo({ info }: { info: BuildInfo }) {
+  if (!info.commit) {
+    return <p className="px-2 text-xs text-neutral-400">未提供 Git 信息</p>
+  }
+
+  return (
+    <div className="px-2 text-xs leading-5 text-neutral-400" title={info.message ?? undefined}>
+      <div className="font-mono">提交 {info.commit}</div>
+      {info.message && <div className="truncate">{info.message}</div>}
+    </div>
+  )
+}
+
+export function AppShell({ children, buildInfo }: { children: React.ReactNode; buildInfo: BuildInfo }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -78,6 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NavLinks onNavigate={() => setMenuOpen(false)} />
             </nav>
             <div className="border-t border-neutral-200 pt-2">
+              <BuildInfo info={buildInfo} />
               <LogoutButton />
             </div>
           </div>
@@ -94,6 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavLinks />
         </nav>
         <div className="border-t border-neutral-200 p-2">
+          <BuildInfo info={buildInfo} />
           <LogoutButton />
         </div>
       </aside>

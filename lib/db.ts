@@ -258,18 +258,23 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const client = getDb()
-  const totalResult = await client.execute({
-    sql: `SELECT COUNT(*) AS c FROM components ${whereSql}`,
-    args,
-  })
+  // 两条语句在同一个 libSQL batch 中执行，避免远程数据库的两次串行往返。
+  const [totalResult, rows] = await client.batch(
+    [
+      {
+        sql: `SELECT COUNT(*) AS c FROM components ${whereSql}`,
+        args,
+      },
+      {
+        sql: `SELECT * FROM components ${whereSql}
+              ORDER BY ${sortCol} ${order}, part_number ASC
+              LIMIT ? OFFSET ?`,
+        args: [...args, pageSize, (page - 1) * pageSize],
+      },
+    ],
+    'read',
+  )
   const total = Number(totalResult.rows[0]?.c ?? 0)
-
-  const rows = await client.execute({
-    sql: `SELECT * FROM components ${whereSql}
-          ORDER BY ${sortCol} ${order}, part_number ASC
-          LIMIT ? OFFSET ?`,
-    args: [...args, pageSize, (page - 1) * pageSize],
-  })
 
   return {
     items: rows.rows.map(mapComponent),

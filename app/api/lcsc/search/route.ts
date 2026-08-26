@@ -16,6 +16,19 @@ export async function GET(request: NextRequest) {
 
   const search = await lcsc.searchPagedTimed(k, page, 30)
   const paged = search.value
+  if (search.failure) {
+    return setServerTiming(
+      NextResponse.json(
+        { ok: false, error: `立创搜索服务异常（${search.failure.code}），请稍后重试` },
+        { status: 502 },
+      ),
+      [
+        { name: 'lcsc_queue', duration: search.timing.queueMs },
+        { name: 'lcsc_fetch', duration: search.timing.fetchMs, description: search.failure.code },
+        { name: 'total', duration: performance.now() - startedAt },
+      ],
+    )
+  }
   if (paged.totalCount === 0) {
     return setServerTiming(
       NextResponse.json({ ok: false, error: '立创未返回结果，可能是风控或关键词无效' }, { status: 404 }),

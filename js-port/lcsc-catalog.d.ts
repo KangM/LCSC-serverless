@@ -27,6 +27,12 @@ export interface PagedResult {
   totalPages: number
 }
 
+export class LcscUpstreamError extends Error {
+  readonly code: string
+  readonly status?: number
+  constructor(code: string, options?: { status?: number })
+}
+
 export class LcscCatalogClient {
   constructor(options?: { fetchImpl?: typeof fetch; log?: object })
   searchProducts(keyword: string): Promise<Array<object>>
@@ -34,5 +40,5 @@ export class LcscCatalogClient {
   lookupByPartNumber(partNumber: string): Promise<ComponentDetail | null>
   searchByKeyword(keyword: string): Promise<ComponentDetail[]>
   searchPaged(keyword: string, page?: number, pageSize?: number): Promise<PagedResult>
-  postSearchQuery(keyword: string, page?: number, pageSize?: number): Promise<object | null>
+  postSearchQuery(keyword: string, page?: number, pageSize?: number): Promise<object>
 }

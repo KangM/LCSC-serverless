@@ -10,7 +10,7 @@
  * 禁止 import 到客户端组件（'server-only' 会直接报错）。
  */
 import 'server-only'
-import { LcscCatalogClient } from '../js-port/lcsc-catalog.js'
+import { LcscCatalogClient, LcscUpstreamError } from '../js-port/lcsc-catalog.js'
 import type { ComponentDetail, PagedResult } from '../js-port/lcsc-catalog.js'
 
 export type { ComponentDetail, PagedResult }
@@ -22,9 +22,15 @@ export interface LcscTiming {
   fetchMs: number
 }
 
+export interface LcscFailure {
+  code: string
+  status?: number
+}
+
 export interface TimedLcscResult<T> {
   value: T
   timing: LcscTiming
+  failure?: LcscFailure
 }
 
 // ---------------------------------------------------------------------------
@@ -69,39 +75,62 @@ class TtlCache<T> {
 }
 
 /**
- * 串行限速：把请求放进 promise 链排队，保证两次真实网络请求
- * 之间至少间隔 REQUEST_GAP_MS。内存里同样缓存了限速状态，
- * 所以并发调用（如多用户同时入库）也不会打爆立创。
+ * 启动间隔限速：保证真实请求的启动时间至少相隔 REQUEST_GAP_MS，
+ * 但不等待前一个网络请求完成，避免慢上游把后续请求全串行阻塞。
  */
-let lastRequestAt = 0
-let requestChain: Promise<unknown> = Promise.resolve()
+let nextRequestAt = 0
+let schedulingLock: Promise<void> = Promise.resolve()
 
 async function throttle(): Promise<void> {
+  let release!: () => void
+  const previous = schedulingLock
+  schedulingLock = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+
   const now = Date.now()
-  const waitMs = Math.max(0, lastRequestAt + REQUEST_GAP_MS - now)
-  lastRequestAt = now + waitMs
+  const waitMs = Math.max(0, nextRequestAt - now)
+  nextRequestAt = Math.max(now, nextRequestAt) + REQUEST_GAP_MS
+  release()
   if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+}
+
+class TimedTaskError extends Error {
+  readonly cause: unknown
+  readonly timing: LcscTiming
+
+  constructor(cause: unknown, timing: LcscTiming) {
+    super('LCSC 请求失败')
+    this.cause = cause
+    this.timing = timing
+  }
 }
 
 /** 在限速队列中执行一次真实网络请求 */
 function throttled<T>(task: () => Promise<T>): Promise<TimedLcscResult<T>> {
   const enqueuedAt = performance.now()
-  const run = requestChain.then(async () => {
+  return (async () => {
     await throttle()
     const fetchStartedAt = performance.now()
-    const value = await task()
-    return {
-      value,
-      timing: {
-        cache: 'miss' as const,
+    try {
+      const value = await task()
+      return {
+        value,
+        timing: {
+          cache: 'miss' as const,
+          queueMs: fetchStartedAt - enqueuedAt,
+          fetchMs: performance.now() - fetchStartedAt,
+        },
+      }
+    } catch (error) {
+      throw new TimedTaskError(error, {
+        cache: 'miss',
         queueMs: fetchStartedAt - enqueuedAt,
         fetchMs: performance.now() - fetchStartedAt,
-      },
+      })
     }
-  })
-  // 链上任何失败都不影响后续请求排队
-  requestChain = run.catch(() => undefined)
-  return run
+  })()
 }
 
 // ---------------------------------------------------------------------------
@@ -154,11 +183,28 @@ class LcscService {
       return { value: cached, timing: { cache: 'hit', queueMs: 0, fetchMs: 0 } }
     }
 
-    const result = await throttled(() => this.client.searchPaged(keyword, page, pageSize))
-    if (result.value.totalCount > 0) {
-      this.searchCache.set(key, result.value, SEARCH_TTL_MS)
+    try {
+      const result = await throttled(() => this.client.searchPaged(keyword, page, pageSize))
+      if (result.value.totalCount > 0) {
+        this.searchCache.set(key, result.value, SEARCH_TTL_MS)
+      }
+      return result
+    } catch (error) {
+      const timed = error instanceof TimedTaskError
+        ? error
+        : new TimedTaskError(error, { cache: 'miss', queueMs: 0, fetchMs: 0 })
+      const upstream = timed.cause instanceof LcscUpstreamError ? timed.cause : null
+      const failure: LcscFailure = {
+        code: upstream?.code ?? 'unknown',
+        ...(upstream?.status ? { status: upstream.status } : {}),
+      }
+      console.warn(`[lcsc] search failure code=${failure.code} status=${failure.status ?? '-'} keyword=${JSON.stringify(keyword)}`)
+      return {
+        value: { items: [], page, pageSize, totalCount: 0, totalPages: 0 },
+        timing: timed.timing,
+        failure,
+      }
     }
-    return result
   }
 
   /** 关键词搜索第 1 页（OCR 选词、MPN 兜底用），与 searchPaged 同缓存 */
