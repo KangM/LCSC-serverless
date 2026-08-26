@@ -5,6 +5,7 @@ import { Button, Input, Label, Modal, Badge } from './ui'
 import { QrScanModal } from './QrScanModal'
 import { OcrModal } from './OcrModal'
 import { SearchResultsModal } from './SearchResultsModal'
+import { ImageHoverZoom } from './ImageHoverZoom'
 import { parseLcscQrCode } from '@/lib/qr'
 import { useToast } from './Toast'
 import type { ComponentDetail } from '@/lib/lcsc'
@@ -211,12 +212,10 @@ export function InboundModal({
         <div className="space-y-4">
           <div className="flex gap-3 rounded-lg border border-neutral-200 p-3">
             {detail.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <ImageHoverZoom
                 src={detail.imageUrl}
                 alt={detail.partNumber}
                 className="h-16 w-16 shrink-0 rounded object-contain"
-                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="h-16 w-16 shrink-0 rounded bg-neutral-100" />
