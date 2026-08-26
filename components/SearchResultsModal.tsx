@@ -7,7 +7,7 @@ import type { ComponentDetail } from '@/lib/lcsc'
 /**
  * 立创搜索结果窗口（单列列表）：
  * 每行 = 序号 + 大图 + 编号 + 名称 + 品牌/封装/价格/库存；
- * 行尾「规格」按钮默认收起，点击展开该元件的完整规格参数表。
+ * 每行始终显示该元件的完整规格参数表。
  * 滚动到底部自动加载下一页（无限滚动）。
  */
 export function SearchResultsModal({
@@ -29,7 +29,6 @@ export function SearchResultsModal({
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const listRef = useRef<HTMLDivElement>(null)
 
   const search = useCallback(async (k: string, targetPage: number) => {
@@ -66,7 +65,6 @@ export function SearchResultsModal({
       setPage(1)
       setTotalPages(0)
       setError('')
-      setExpanded(new Set())
       if (initialKeyword.trim()) void search(initialKeyword, 1)
     }
   }, [open, initialKeyword, search])
@@ -84,15 +82,6 @@ export function SearchResultsModal({
     setSearchTerm(keyword.trim())
     setItems([])
     void search(keyword.trim(), 1)
-  }
-
-  function toggleExpand(pn: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(pn)) next.delete(pn)
-      else next.add(pn)
-      return next
-    })
   }
 
   return (
@@ -121,7 +110,6 @@ export function SearchResultsModal({
             <p className="py-10 text-center text-sm text-neutral-400">输入关键词后点击搜索</p>
           )}
           {items.map((c, idx) => {
-            const isExpanded = expanded.has(c.partNumber)
             const specs = Object.entries(c.specifications ?? {})
             return (
               <div key={c.partNumber} className="rounded-lg border border-neutral-200 hover:border-blue-300">
@@ -157,35 +145,23 @@ export function SearchResultsModal({
                         <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-500">未入库</span>
                       )}
                     </div>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        toggleExpand(c.partNumber)
-                      }}
-                      className="mt-1 inline-block text-xs text-blue-600 hover:underline"
-                    >
-                      {isExpanded ? '▾ 收起规格参数' : '▸ 展开规格参数'}
-                    </a>
                   </div>
-                  {isExpanded && (
-                    <div className="w-52 shrink-0 self-stretch rounded bg-neutral-50/70 px-2 py-1.5">
-                        {specs.length === 0 ? (
-                          <p className="text-xs text-neutral-400">暂无规格参数</p>
-                        ) : (
-                          <table className="w-full text-xs">
-                            <tbody>
-                              {specs.map(([k, v]) => (
-                                <tr key={k} className="border-b border-neutral-100 last:border-0">
-                                  <td className="w-1/3 py-1 pr-2 text-neutral-500">{k}</td>
-                                  <td className="py-1 text-neutral-700">{v}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                    </div>
-                  )}
+                  <div className="w-52 shrink-0 self-stretch rounded bg-neutral-50/70 px-2 py-1.5">
+                    {specs.length === 0 ? (
+                      <p className="text-xs text-neutral-400">暂无规格参数</p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {specs.map(([k, v]) => (
+                            <tr key={k} className="border-b border-neutral-100 last:border-0">
+                              <td className="w-1/3 py-1 pr-2 text-neutral-500">{k}</td>
+                              <td className="py-1 text-neutral-700">{v}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                   <Button size="sm" onClick={() => onPicked(c.partNumber)} className="shrink-0">
                     入库
                   </Button>
