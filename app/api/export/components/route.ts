@@ -19,16 +19,41 @@ function csvResponse(filename: string, rows: Array<Array<unknown>>): NextRespons
   })
 }
 
+function formatSpecifications(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw.trim()) return ['', '', '', '']
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ['', '', '', '']
+    return Object.entries(parsed)
+      .slice(0, 4)
+      .map(([key, value]) => `${key}: ${String(value)}`)
+      .concat(['', '', '', ''])
+      .slice(0, 4)
+  } catch {
+    return ['', '', '', '']
+  }
+}
+
 /** GET /api/export/components — 全量元件 CSV */
 export async function GET() {
-  const result = await getDb().execute('SELECT * FROM components ORDER BY part_number')
+  const result = await getDb().execute(`
+    SELECT components.*, (
+      SELECT reference_designator FROM transactions
+      WHERE transactions.part_number = components.part_number
+        AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+      ORDER BY transactions.id DESC LIMIT 1
+    ) AS reference_designator
+    FROM components ORDER BY part_number
+  `)
   const rows: Array<Array<unknown>> = [
-    ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'product_url', 'datasheet_url', 'updated_at'],
+    ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'reference_designator', 'spec_1', 'spec_2', 'spec_3', 'spec_4', 'product_url', 'datasheet_url', 'updated_at'],
   ]
   for (const r of result.rows) {
+    const specs = formatSpecifications(r.specifications)
     rows.push([
       r.part_number, r.mpn, r.name, r.brand, r.package_name, r.category,
-      r.price, r.stock_quantity, r.threshold, r.product_url, r.datasheet_url, r.updated_at,
+      r.price, r.stock_quantity, r.threshold, r.reference_designator, ...specs,
+      r.product_url, r.datasheet_url, r.updated_at,
     ])
   }
   return csvResponse('components.csv', rows)
