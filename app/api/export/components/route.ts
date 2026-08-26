@@ -1,8 +1,6 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { connection } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
 /** CSV 专用转义：含逗号/引号/换行时用引号包裹 */
 function csvCell(value: unknown): string {
@@ -47,6 +45,7 @@ function formatSpecifications(raw: unknown): string[] {
 
 /** GET /api/export/components — 全量元件 CSV */
 export async function GET() {
+  await connection()
   const result = await getDb().execute(`
     SELECT components.*, (
       SELECT reference_designator FROM transactions
