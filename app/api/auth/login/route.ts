@@ -6,6 +6,11 @@ import {
   SESSION_COOKIE,
 } from '@/lib/session'
 
+function isSecureRequest(request: NextRequest): boolean {
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  return forwardedProto === 'https' || request.nextUrl.protocol === 'https:'
+}
+
 export async function POST(request: NextRequest) {
   const expected = process.env.APP_PASSWORD
   if (!expected) {
@@ -38,7 +43,7 @@ export async function POST(request: NextRequest) {
   res.cookies.set(
     SESSION_COOKIE,
     token,
-    sessionCookieOptions(process.env.NODE_ENV === 'production'),
+    sessionCookieOptions(isSecureRequest(request)),
   )
   return res
 }
