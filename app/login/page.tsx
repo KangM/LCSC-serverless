@@ -37,7 +37,7 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
+    <form action="/api/auth/login" method="post" onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
       <div className="text-center space-y-1">
         <h1 className="text-2xl font-bold">元件库存管理</h1>
         <p className="text-sm text-neutral-500">请输入访问密码</p>

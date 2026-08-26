@@ -15,11 +15,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const isJson = request.headers.get('content-type')?.includes('application/json')
   let password: unknown = null
   try {
-    ({ password } = await request.json())
+    if (isJson) {
+      ({ password } = await request.json())
+    } else {
+      password = (await request.formData()).get('password')
+    }
   } catch {
-    return NextResponse.json({ ok: false, error: '请求体不是有效 JSON' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: '请求体无效' }, { status: 400 })
   }
 
   if (typeof password !== 'string' || !verifyPassword(password, expected)) {
@@ -27,7 +32,9 @@ export async function POST(request: NextRequest) {
   }
 
   const token = await createSessionToken()
-  const res = NextResponse.json({ ok: true })
+  const res = isJson
+    ? NextResponse.json({ ok: true })
+    : NextResponse.redirect(new URL('/', request.url), 303)
   res.cookies.set(
     SESSION_COOKIE,
     token,
