@@ -29,6 +29,7 @@ export interface ComponentRow {
   description: string | null
   price: number | null
   stockQuantity: number
+  referenceDesignator: string | null
   threshold: number
   productUrl: string | null
   datasheetUrl: string | null
@@ -185,6 +186,7 @@ function mapComponent(row: SqlRow): ComponentRow {
     description: (row.description as string) ?? null,
     price: row.price == null ? null : Number(row.price),
     stockQuantity: Number(row.stock_quantity ?? 0),
+    referenceDesignator: (row.reference_designator as string) ?? null,
     threshold: Number(row.threshold ?? 0),
     productUrl: (row.product_url as string) ?? null,
     datasheetUrl: (row.datasheet_url as string) ?? null,
@@ -278,7 +280,13 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
         args,
       },
       {
-        sql: `SELECT * FROM components ${whereSql}
+        sql: `SELECT components.*, (
+                SELECT reference_designator FROM transactions
+                WHERE transactions.part_number = components.part_number
+                  AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+                ORDER BY transactions.id DESC LIMIT 1
+              ) AS reference_designator
+              FROM components ${whereSql}
               ORDER BY ${sortCol} ${order}, part_number ASC
               LIMIT ? OFFSET ?`,
         args: [...args, pageSize, (page - 1) * pageSize],
@@ -300,7 +308,13 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
 /** 单个元件详情 */
 export async function getComponent(partNumber: string): Promise<ComponentRow | null> {
   const result = await getDb().execute({
-    sql: 'SELECT * FROM components WHERE part_number = ?',
+    sql: `SELECT components.*, (
+            SELECT reference_designator FROM transactions
+            WHERE transactions.part_number = components.part_number
+              AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+            ORDER BY transactions.id DESC LIMIT 1
+          ) AS reference_designator
+          FROM components WHERE part_number = ?`,
     args: [normalizePartNumber(partNumber)],
   })
   return result.rows.length ? mapComponent(result.rows[0]) : null
@@ -314,7 +328,13 @@ export async function getComponentsByPartNumbers(
   if (!pns.length) return new Map()
   const placeholders = pns.map(() => '?').join(',')
   const result = await getDb().execute({
-    sql: `SELECT * FROM components WHERE part_number IN (${placeholders})`,
+    sql: `SELECT components.*, (
+            SELECT reference_designator FROM transactions
+            WHERE transactions.part_number = components.part_number
+              AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+            ORDER BY transactions.id DESC LIMIT 1
+          ) AS reference_designator
+          FROM components WHERE part_number IN (${placeholders})`,
     args: pns,
   })
   return new Map(result.rows.map((row) => {

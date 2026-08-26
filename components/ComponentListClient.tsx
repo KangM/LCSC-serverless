@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge, Button, EmptyState, Input, Pagination, Select } from './ui'
 import { InboundModal } from './InboundModal'
 import { StockActionModal, type StockMode } from './StockActionModal'
@@ -50,6 +50,14 @@ export function ComponentListClient({
   const [initialPn, setInitialPn] = useState<string | undefined>()
   const [stockTarget, setStockTarget] = useState<{ mode: StockMode; row: ComponentRow } | null>(null)
   const [detailPn, setDetailPn] = useState<string | null>(null)
+  const [specPopup, setSpecPopup] = useState<{ partNumber: string; pinned: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!specPopup) return
+    const closeOnOutsideClick = () => setSpecPopup(null)
+    document.addEventListener('click', closeOnOutsideClick)
+    return () => document.removeEventListener('click', closeOnOutsideClick)
+  }, [specPopup])
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -213,6 +221,8 @@ export function ComponentListClient({
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-blue-600" />
               </th>
               <th className="px-4 py-2.5">元件</th>
+              <th className="px-4 py-2.5 text-center">位号</th>
+              <th className="px-4 py-2.5 text-center">规格参数</th>
               <th className="px-4 py-2.5 text-center">库存</th>
               <th className="px-4 py-2.5 text-center">品牌</th>
               <th className="px-4 py-2.5 text-center">封装</th>
@@ -222,7 +232,7 @@ export function ComponentListClient({
           </thead>
           <tbody>
             {initial.items.length === 0 ? (
-              <tr><td colSpan={7}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
+              <tr><td colSpan={9}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
             ) : (
               initial.items.map((row) => {
                 const low = row.threshold > 0 && row.stockQuantity <= row.threshold
@@ -255,6 +265,45 @@ export function ComponentListClient({
                             {row.mpn ? ` · ${row.mpn}` : ''}
                           </div>
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-center text-neutral-600">{row.referenceDesignator ?? '-'}</td>
+                    <td className="px-4 py-2 text-center">
+                      <div
+                        className="relative inline-block"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseEnter={() => setSpecPopup({ partNumber: row.partNumber, pinned: false })}
+                        onMouseLeave={() => {
+                          if (specPopup?.partNumber === row.partNumber && !specPopup.pinned) setSpecPopup(null)
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 hover:bg-blue-100"
+                          onClick={() => setSpecPopup((prev) => prev?.partNumber === row.partNumber ? { ...prev, pinned: !prev.pinned } : { partNumber: row.partNumber, pinned: true })}
+                        >
+                          规格
+                        </button>
+                        {specPopup?.partNumber === row.partNumber && (
+                          <div
+                            className="absolute right-0 top-full z-40 mt-1 w-64 rounded-lg border border-neutral-200 bg-white p-2 text-left shadow-xl"
+                          >
+                            {Object.entries(row.specifications).length === 0 ? (
+                              <p className="text-xs text-neutral-400">暂无规格参数</p>
+                            ) : (
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {Object.entries(row.specifications).map(([key, value]) => (
+                                    <tr key={key} className="border-b border-neutral-100 last:border-0">
+                                      <td className="w-1/3 py-1 pr-2 text-neutral-500">{key}</td>
+                                      <td className="py-1 text-neutral-700">{value}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 text-center">
