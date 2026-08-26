@@ -1,5 +1,5 @@
 import { connection } from 'next/server'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 
 /** CSV 专用转义：含逗号/引号/换行时用引号包裹 */
@@ -28,14 +28,17 @@ function timestampedFilename(prefix: string): string {
   return `${prefix}-${stamp}.csv`
 }
 
-function formatSpecifications(raw: unknown): string[] {
+function formatSpecifications(raw: unknown, printFormat: boolean): string[] {
   if (typeof raw !== 'string' || !raw.trim()) return ['', '', '', '']
   try {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ['', '', '', '']
     return Object.entries(parsed)
       .slice(0, 4)
-      .map(([key, value]) => `${key}: ${String(value)}`)
+      .map(([key, value]) => {
+        const formatted = `${key}: ${String(value)}`
+        return printFormat && formatted.includes(':') ? formatted.slice(formatted.indexOf(':') + 1).trim() : formatted
+      })
       .concat(['', '', '', ''])
       .slice(0, 4)
   } catch {
@@ -44,8 +47,9 @@ function formatSpecifications(raw: unknown): string[] {
 }
 
 /** GET /api/export/components — 全量元件 CSV */
-export async function GET() {
+export async function GET(request: NextRequest) {
   await connection()
+  const printFormat = request.nextUrl.searchParams.get('format') === 'print'
   const result = await getDb().execute(`
     SELECT components.*, (
       SELECT reference_designator FROM transactions
@@ -59,12 +63,12 @@ export async function GET() {
     ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'reference_designator', 'spec_1', 'spec_2', 'spec_3', 'spec_4', 'product_url', 'datasheet_url', 'updated_at'],
   ]
   for (const r of result.rows) {
-    const specs = formatSpecifications(r.specifications)
+    const specs = formatSpecifications(r.specifications, printFormat)
     rows.push([
       r.part_number, r.mpn, r.name, r.brand, r.package_name, r.category,
       r.price, r.stock_quantity, r.threshold, r.reference_designator, ...specs,
       r.product_url, r.datasheet_url, r.updated_at,
     ])
   }
-  return csvResponse(timestampedFilename('components'), rows)
+  return csvResponse(timestampedFilename(printFormat ? 'components-print' : 'components'), rows)
 }

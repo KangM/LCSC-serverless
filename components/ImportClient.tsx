@@ -241,9 +241,14 @@ export function ImportClient() {
             <Label>结束日期</Label>
             <Input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="w-40" />
           </div>
-          <a className="export_btn" href="/api/export/components">
-            <Button variant="secondary" size="sm">导出元件 CSV</Button>
-          </a>
+          <div className="flex overflow-hidden rounded-lg border border-neutral-300 bg-white">
+            <a className="export_btn" href="/api/export/components">
+              <Button variant="secondary" size="sm" className="rounded-none border-0">导出元件 CSV</Button>
+            </a>
+            <a className="export_btn border-l border-neutral-300" href="/api/export/components?format=print">
+              <Button variant="secondary" size="sm" className="rounded-none border-0">导出打印格式</Button>
+            </a>
+          </div>
           {/* 流水导出按上方时间范围筛选（本地日期 → UTC ISO 边界） */}
           <a className="export_btn" href={`/api/export/transactions?${new URLSearchParams({
             ...(exportFrom ? { from: toIsoBoundary(exportFrom, false) } : {}),
