@@ -25,7 +25,7 @@ const SORT_OPTIONS = [
   { value: 'package', label: '封装' },
   { value: 'category', label: '分类' },
   { value: 'stock', label: '库存量' },
-  { value: 'price', label: '价格' },
+  { value: 'price', label: '立创价格' },
 ]
 
 export function ComponentListClient({
@@ -217,7 +217,7 @@ export function ComponentListClient({
               <th className="px-4 py-2.5 text-center">品牌</th>
               <th className="px-4 py-2.5 text-center">封装</th>
               <th className="px-4 py-2.5 text-center">分类</th>
-              <th className="px-4 py-2.5 text-right">价格</th>
+              <th className="px-4 py-2.5 text-right">立创价格</th>
             </tr>
           </thead>
           <tbody>

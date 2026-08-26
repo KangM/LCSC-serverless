@@ -29,6 +29,8 @@ export function InboundModal({
   const [keyword, setKeyword] = useState(initialPartNumber ?? '')
   const [detail, setDetail] = useState<ComponentDetail | null>(null)
   const [quantity, setQuantity] = useState(1)
+  const [referenceDesignator, setReferenceDesignator] = useState('')
+  const [purchasePrice, setPurchasePrice] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -42,6 +44,8 @@ export function InboundModal({
     setKeyword(initialPartNumber ?? '')
     setDetail(null)
     setQuantity(1)
+    setReferenceDesignator('')
+    setPurchasePrice('')
     setNote('')
     setError('')
     setQrOpen(false)
@@ -106,6 +110,8 @@ export function InboundModal({
         body: JSON.stringify({
           partNumber: detail!.partNumber,
           quantity,
+          referenceDesignator: referenceDesignator || undefined,
+          purchasePrice: purchasePrice === '' ? undefined : Number(purchasePrice),
           note: note || undefined,
           detail,
         }),
@@ -218,7 +224,7 @@ export function InboundModal({
                 {detail.category && <Badge color="amber">{detail.category}</Badge>}
               </div>
               <div className="mt-1 text-xs text-neutral-500">
-                ¥{detail.price ?? '-'} / 个
+                立创价格 ¥{detail.price ?? '-'} / 个
               </div>
             </div>
           </div>
@@ -231,6 +237,21 @@ export function InboundModal({
                 min={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              />
+            </div>
+            <div>
+              <Label>位号（可选）</Label>
+              <Input value={referenceDesignator} onChange={(e) => setReferenceDesignator(e.target.value)} placeholder="如 R12、C3-C6" />
+            </div>
+            <div>
+              <Label>入手价格（元/个，可选）</Label>
+              <Input
+                type="number"
+                min={0}
+                step="any"
+                value={purchasePrice}
+                onChange={(e) => setPurchasePrice(e.target.value)}
+                placeholder="如 0.2787"
               />
             </div>
             <div>

@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   quantity     INTEGER NOT NULL,                       -- in/out 为正数；adjust 为变化量（可正可负）
   before_qty   INTEGER NOT NULL,                       -- 操作前库存
   after_qty    INTEGER NOT NULL,                       -- 操作后库存
+  reference_designator TEXT,                            -- 位号，如 R12、C3-C6
+  purchase_price REAL,                                 -- 本次入手单价（元）
   note         TEXT,                                   -- 备注
   operator     TEXT,                                   -- 操作人
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

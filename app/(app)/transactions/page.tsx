@@ -97,6 +97,8 @@ export default async function TransactionsPage({ searchParams }: Props) {
                 <th className="table_head px-4 py-2.5">类型</th>
                 <th className="table_head px-4 py-2.5 text-right">数量</th>
                 <th className="table_head px-4 py-2.5 text-right">库存变化</th>
+                <th className="table_head px-4 py-2.5">位号</th>
+                <th className="table_head px-4 py-2.5 text-right">入手价格</th>
                 <th className="table_head px-4 py-2.5">备注</th>
                 <th className="table_head px-4 py-2.5">操作人</th>
               </tr>
@@ -120,6 +122,10 @@ export default async function TransactionsPage({ searchParams }: Props) {
                     </td>
                     <td className="sub_text px-4 py-2 text-right text-neutral-500">
                       {t.beforeQty} → {t.afterQty}
+                    </td>
+                    <td className="sub_text px-4 py-2 text-neutral-600">{t.referenceDesignator ?? ''}</td>
+                    <td className="sub_text px-4 py-2 text-right text-neutral-600">
+                      {t.purchasePrice == null ? '' : `¥${t.purchasePrice}`}
                     </td>
                     <td className="sub_text px-4 py-2 text-neutral-600">{t.note ?? ''}</td>
                     <td className="sub_text px-4 py-2 text-neutral-500">{t.operator ?? ''}</td>

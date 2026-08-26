@@ -153,7 +153,7 @@ export function ComponentDetailModal({
                 {row.category && <Badge color="amber">{row.category}</Badge>}
               </div>
               <div className="mt-2 flex gap-4 text-sm text-neutral-600">
-                {row.price != null && <span>价格 ¥{row.price}</span>}
+                {row.price != null && <span>立创价格 ¥{row.price}</span>}
                 {row.productUrl && (
                   <a href={row.productUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
                     立创商品页 ↗
@@ -250,6 +250,8 @@ export function ComponentDetailModal({
                         {sign}{t.type === 'adjust' ? Math.abs(t.quantity) : t.quantity}
                       </span>
                       <span className="flex-1 truncate text-neutral-500">{t.note ?? ''}</span>
+                      {t.referenceDesignator && <span className="text-xs text-neutral-500">位号 {t.referenceDesignator}</span>}
+                      {t.purchasePrice != null && <span className="text-xs text-neutral-500">入手 ¥{t.purchasePrice}</span>}
                       <span className="text-xs text-neutral-400">{t.beforeQty} → {t.afterQty}</span>
                       <span className="w-36 shrink-0 text-right text-xs text-neutral-400">
                         <TimeText value={t.createdAt} />

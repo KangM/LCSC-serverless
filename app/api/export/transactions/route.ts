@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
   })
 
   const rows: Array<Array<unknown>> = [
-    ['id', 'time', 'part_number', 'name', 'type', 'quantity', 'before_qty', 'after_qty', 'note', 'operator'],
+    ['id', 'time', 'part_number', 'name', 'type', 'quantity', 'before_qty', 'after_qty', 'reference_designator', 'purchase_price', 'note', 'operator'],
   ]
   for (const t of data.items) {
     rows.push([
       t.id, new Date(t.createdAt).toISOString(), t.partNumber, t.name,
-      t.type, t.quantity, t.beforeQty, t.afterQty, t.note, t.operator,
+      t.type, t.quantity, t.beforeQty, t.afterQty, t.referenceDesignator, t.purchasePrice, t.note, t.operator,
     ])
   }
 

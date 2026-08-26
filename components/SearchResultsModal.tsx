@@ -139,7 +139,7 @@ export function SearchResultsModal({
                   ) : (
                     <div className="h-16 w-16 shrink-0 rounded bg-neutral-100" />
                   )}
-                  {/* 信息区：规格链接与展开表都在 flex-1 内，与文本对齐 */}
+                  {/* 信息区 */}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{c.name ?? c.partNumber}</div>
                     <div className="font-mono text-xs text-blue-600">{c.partNumber}</div>
@@ -149,7 +149,7 @@ export function SearchResultsModal({
                       {c.category && <span>{c.category}</span>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      <span className="font-medium text-neutral-800">¥{c.price ?? '-'}</span>
+                      <span className="font-medium text-neutral-800">立创价格 ¥{c.price ?? '-'}</span>
                       <span className="text-neutral-400">库存 {c.stockQuantity ?? '-'}</span>
                       {inStockSet.has(c.partNumber) ? (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">在库</span>
@@ -167,8 +167,9 @@ export function SearchResultsModal({
                     >
                       {isExpanded ? '▾ 收起规格参数' : '▸ 展开规格参数'}
                     </a>
-                    {isExpanded && (
-                      <div className="mt-1.5 rounded bg-neutral-50/70 px-2 py-1.5">
+                  </div>
+                  {isExpanded && (
+                    <div className="w-52 shrink-0 self-stretch rounded bg-neutral-50/70 px-2 py-1.5">
                         {specs.length === 0 ? (
                           <p className="text-xs text-neutral-400">暂无规格参数</p>
                         ) : (
@@ -183,9 +184,8 @@ export function SearchResultsModal({
                             </tbody>
                           </table>
                         )}
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <Button size="sm" onClick={() => onPicked(c.partNumber)} className="shrink-0">
                     入库
                   </Button>

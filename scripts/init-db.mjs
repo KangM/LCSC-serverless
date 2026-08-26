@@ -62,6 +62,17 @@ for (const stmt of statements) {
   await client.execute(stmt)
 }
 
+// 旧库由 CREATE TABLE IF NOT EXISTS 保留原结构；为入库流水补齐新增列。
+const transactionColumns = new Set(
+  (await client.execute('PRAGMA table_info(transactions)')).rows.map((row) => String(row.name)),
+)
+if (!transactionColumns.has('reference_designator')) {
+  await client.execute('ALTER TABLE transactions ADD COLUMN reference_designator TEXT')
+}
+if (!transactionColumns.has('purchase_price')) {
+  await client.execute('ALTER TABLE transactions ADD COLUMN purchase_price REAL')
+}
+
 // 校验三张表都建好了
 const check = await client.execute(
   "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('components','transactions','settings') ORDER BY name",

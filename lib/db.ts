@@ -47,6 +47,8 @@ export interface TransactionRow {
   quantity: number
   beforeQty: number
   afterQty: number
+  referenceDesignator: string | null
+  purchasePrice: number | null
   note: string | null
   operator: string | null
   createdAt: string
@@ -215,6 +217,8 @@ function mapTransaction(row: SqlRow): TransactionRow {
     quantity: Number(row.quantity),
     beforeQty: Number(row.before_qty),
     afterQty: Number(row.after_qty),
+    referenceDesignator: (row.reference_designator as string) ?? null,
+    purchasePrice: row.purchase_price == null ? null : Number(row.purchase_price),
     note: (row.note as string) ?? null,
     operator: (row.operator as string) ?? null,
     createdAt: row.created_at as string,
@@ -392,7 +396,13 @@ export async function setThreshold(partNumber: string, threshold: number): Promi
 export async function stockIn(
   partNumber: string,
   quantity: number,
-  options: { detail?: ComponentDetail | null; note?: string; operator?: string } = {},
+  options: {
+    detail?: ComponentDetail | null
+    referenceDesignator?: string
+    purchasePrice?: number | null
+    note?: string
+    operator?: string
+  } = {},
 ): Promise<ComponentRow> {
   const pn = normalizePartNumber(partNumber)
   const qty = Math.max(1, Math.trunc(quantity))
@@ -426,9 +436,16 @@ export async function stockIn(
 
   const beforeQty = existing?.stockQuantity ?? 0
   stmts.push({
-    sql: `INSERT INTO transactions (part_number, type, quantity, before_qty, after_qty, note, operator)
-          VALUES (?, 'in', ?, ?, ?, ?, ?)`,
-    args: [pn, qty, beforeQty, beforeQty + qty, options.note ?? null, options.operator ?? null],
+    sql: `INSERT INTO transactions (
+            part_number, type, quantity, before_qty, after_qty,
+            reference_designator, purchase_price, note, operator
+          ) VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      pn, qty, beforeQty, beforeQty + qty,
+      options.referenceDesignator?.trim() || null,
+      options.purchasePrice ?? null,
+      options.note ?? null, options.operator ?? null,
+    ],
   })
 
   await client.batch(stmts, 'write')

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/components — 入库
- * body: { partNumber, quantity, note?, detail? }
+ * body: { partNumber, quantity, referenceDesignator?, purchasePrice?, note?, detail? }
  * detail 缺省时服务端实时查立创补全（客户端传入的 detail 也以服务端为准更新缓存）。
  */
 export async function POST(request: NextRequest) {
@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
   const partNumber: unknown = body?.partNumber
   const quantity: unknown = body?.quantity
   const note: unknown = body?.note
+  const referenceDesignator: unknown = body?.referenceDesignator
+  const purchasePrice: unknown = body?.purchasePrice
   const detail: ComponentDetail | null | undefined = body?.detail
 
   if (typeof partNumber !== 'string' || !partNumber.trim()) {
@@ -35,6 +37,9 @@ export async function POST(request: NextRequest) {
   }
   if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity < 1) {
     return NextResponse.json({ ok: false, error: '数量必须为正整数' }, { status: 400 })
+  }
+  if (purchasePrice != null && (typeof purchasePrice !== 'number' || !Number.isFinite(purchasePrice) || purchasePrice < 0)) {
+    return NextResponse.json({ ok: false, error: '入手价格必须是非负数字' }, { status: 400 })
   }
 
   // 已存在则无需立创详情；不存在时：客户端给了 detail 就用，否则实时查
@@ -55,6 +60,8 @@ export async function POST(request: NextRequest) {
   try {
     const row = await stockIn(partNumber, quantity, {
       detail: effectiveDetail,
+      referenceDesignator: typeof referenceDesignator === 'string' ? referenceDesignator : undefined,
+      purchasePrice: typeof purchasePrice === 'number' ? purchasePrice : undefined,
       note: typeof note === 'string' ? note : undefined,
     })
     return NextResponse.json({ ok: true, item: row })
