@@ -363,6 +363,11 @@ export function ComponentListClient({
         partNumber={detailPn ?? ''}
         onClose={() => setDetailPn(null)}
         onChanged={refresh}
+        onDeleted={(pn) => {
+          setDetailPn(null)
+          setInitialPn(pn)
+          setInboundOpen(true)
+        }}
       />
     </div>
   )

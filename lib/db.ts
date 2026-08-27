@@ -566,6 +566,19 @@ export async function stockIn(
   return (await getComponent(pn))!
 }
 
+/** 删除元件及其全部出入库流水，释放该元件曾占用的位号。 */
+export async function deleteComponent(partNumber: string): Promise<void> {
+  const pn = normalizePartNumber(partNumber)
+  await getDb().batch(
+    [
+      { sql: 'DELETE FROM transactions WHERE part_number = ?', args: [pn] },
+      { sql: 'DELETE FROM components WHERE part_number = ?', args: [pn] },
+    ],
+    'write',
+  )
+  await invalidateCache()
+}
+
 /**
  * 出库：校验库存足够后扣减并写流水。
  * 注意：先读后写未加行锁，个人单用户场景可接受；如需强并发可改用

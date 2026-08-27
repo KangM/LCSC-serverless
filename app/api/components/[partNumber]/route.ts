@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getComponent } from '@/lib/cache'
-import { setThreshold, upsertComponentFromLcsc } from '@/lib/db'
+import { deleteComponent, setThreshold, upsertComponentFromLcsc } from '@/lib/db'
 import { lcsc } from '@/lib/lcsc'
 
 type Params = { params: Promise<{ partNumber: string }> }
@@ -43,4 +43,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({ ok: false, error: '未知 action' }, { status: 400 })
+}
+
+/** DELETE /api/components/[partNumber] — 删除元件及其全部流水，释放位号。 */
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const { partNumber } = await params
+  const row = await getComponent(partNumber)
+  if (!row) return NextResponse.json({ ok: false, error: '元件不存在' }, { status: 404 })
+
+  await deleteComponent(partNumber)
+  return NextResponse.json({ ok: true })
 }

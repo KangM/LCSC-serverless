@@ -23,11 +23,13 @@ export function ComponentDetailModal({
   partNumber,
   onClose,
   onChanged,
+  onDeleted,
 }: {
   open: boolean
   partNumber: string
   onClose: () => void
   onChanged?: () => void
+  onDeleted?: (partNumber: string) => void
 }) {
   const toast = useToast()
   const [row, setRow] = useState<ComponentRow | null>(null)
@@ -41,6 +43,7 @@ export function ComponentDetailModal({
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [thresholdValue, setThresholdValue] = useState('0')
   const [refreshing, setRefreshing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -110,6 +113,27 @@ export function ComponentDetailModal({
       toast.error('刷新失败，请重试')
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  async function deleteAndReinbound() {
+    if (!window.confirm(`将删除 ${partNumber} 的全部库存和出入库记录，并释放其位号。此操作不可恢复。`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/components/${encodeURIComponent(partNumber)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || '删除失败')
+        return
+      }
+      toast.success('已删除元件并释放位号，请重新入库')
+      onDeleted?.(partNumber)
+      onChanged?.()
+      onClose()
+    } catch {
+      toast.error('删除失败，请重试')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -183,6 +207,11 @@ export function ComponentDetailModal({
                 <Button size="sm" variant="secondary" onClick={refreshFromLcsc} disabled={refreshing}>
                   {refreshing ? '刷新中…' : '刷新立创信息'}
                 </Button>
+                {onDeleted && (
+                  <Button size="sm" variant="danger" onClick={deleteAndReinbound} disabled={deleting}>
+                    {deleting ? '删除中…' : '删除并重新入库'}
+                  </Button>
+                )}
               </div>
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm text-neutral-600">
