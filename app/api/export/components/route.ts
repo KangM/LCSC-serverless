@@ -1,6 +1,7 @@
 import { connection } from 'next/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { formatComponentPrintFields } from '@/lib/component-print-template'
 
 /** CSV 专用转义：含逗号/引号/换行时用引号包裹 */
 function csvCell(value: unknown): string {
@@ -28,17 +29,14 @@ function timestampedFilename(prefix: string): string {
   return `${prefix}-${stamp}.csv`
 }
 
-function formatSpecifications(raw: unknown, printFormat: boolean): string[] {
+function formatSpecifications(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw.trim()) return ['', '', '', '']
   try {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ['', '', '', '']
     return Object.entries(parsed)
       .slice(0, 4)
-      .map(([key, value]) => {
-        const formatted = `${key}: ${String(value)}`
-        return printFormat && formatted.includes(':') ? formatted.slice(formatted.indexOf(':') + 1).trim() : formatted
-      })
+      .map(([key, value]) => `${key}: ${String(value)}`)
       .concat(['', '', '', ''])
       .slice(0, 4)
   } catch {
@@ -63,9 +61,10 @@ export async function GET(request: NextRequest) {
     ['part_number', 'mpn', 'name', 'brand', 'package', 'category', 'price', 'stock', 'threshold', 'reference_designator', 'spec_1', 'spec_2', 'spec_3', 'spec_4', 'product_url', 'datasheet_url', 'updated_at'],
   ]
   for (const r of result.rows) {
-    const specs = formatSpecifications(r.specifications, printFormat)
+    const printFields = printFormat ? formatComponentPrintFields(r.category, r.specifications) : null
+    const specs = printFields?.specifications ?? formatSpecifications(r.specifications)
     rows.push([
-      r.part_number, r.mpn, r.name, r.brand, r.package_name, r.category,
+      r.part_number, r.mpn, r.name, r.brand, r.package_name, printFields?.category ?? r.category,
       r.price, r.stock_quantity, r.threshold, r.reference_designator, ...specs,
       r.product_url, r.datasheet_url, r.updated_at,
     ])
