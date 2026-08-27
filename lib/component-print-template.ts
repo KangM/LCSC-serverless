@@ -22,6 +22,11 @@ const withoutResistorSuffix = (value: string) => value.replace(/电阻$/, '').tr
 
 const PRINT_TEMPLATES: PrintTemplate[] = [
   {
+    matches: (category) => category.includes('静电和浪涌'),
+    shortCategory: 'ESD',
+    fields: [],
+  },
+  {
     matches: (category) => category.includes('贴片电阻') || category.includes('插件电阻'),
     shortCategory: '贴片电阻',
     fields: [
