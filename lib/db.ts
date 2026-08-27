@@ -331,7 +331,7 @@ const SORT_COLUMNS: Record<string, string> = {
 // 元件查询
 // ---------------------------------------------------------------------------
 
-/** 元件列表：关键词（编号/MPN/名称）+ 分类/封装筛选 + 白名单排序 + 分页 */
+/** 元件列表：关键词（编号/MPN/名称/规格）+ 分类/封装筛选 + 白名单排序 + 分页 */
 export async function listComponents(query: ComponentQuery = {}): Promise<Paged<ComponentRow>> {
   const { q, category, packageName } = query
   const page = Math.max(1, query.page ?? 1)
@@ -346,9 +346,9 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
     args.push(query.status === 'deleted' ? 'deleted' : 'active')
   }
   if (q && q.trim()) {
-    where.push('(part_number LIKE ? OR mpn LIKE ? OR name LIKE ?)')
+    where.push("(part_number LIKE ? OR mpn LIKE ? OR name LIKE ? OR COALESCE(specifications, '') LIKE ?)")
     const like = `%${q.trim()}%`
-    args.push(like, like, like)
+    args.push(like, like, like, like)
   }
   if (category && category.trim()) {
     where.push('category = ?')
