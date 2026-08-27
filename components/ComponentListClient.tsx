@@ -276,14 +276,14 @@ export function ComponentListClient({
                       </div>
                     </td>
                     <td className="px-4 py-2 text-center text-neutral-600">{row.referenceDesignator ?? '-'}</td>
-                    <td className="min-w-64 px-4 py-2 align-top">
+                    <td className="w-[28rem] min-w-[28rem] px-4 py-2 align-top">
                       {Object.entries(row.specifications).length === 0 ? (
                         <span className="text-xs text-neutral-400">暂无规格参数</span>
                       ) : (
-                        <dl className="space-y-0.5 text-left text-xs leading-5">
-                          {Object.entries(row.specifications).map(([key, value]) => (
-                            <div key={key} className="grid grid-cols-[minmax(5rem,auto)_1fr] gap-x-2">
-                              <dt className="text-neutral-500">{key}</dt>
+                        <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-left text-xs leading-5">
+                          {Object.entries(row.specifications).slice(0, 4).map(([key, value]) => (
+                            <div key={key} className="contents">
+                              <dt className="whitespace-nowrap text-neutral-500">{key}</dt>
                               <dd className="break-words text-neutral-700">{value}</dd>
                             </div>
                           ))}
