@@ -29,6 +29,7 @@ export interface ComponentRow {
   description: string | null
   price: number | null
   stockQuantity: number
+  status: 'active' | 'deleted'
   referenceDesignator: string | null
   threshold: number
   productUrl: string | null
@@ -67,6 +68,7 @@ export interface ComponentQuery {
   q?: string
   category?: string
   packageName?: string
+  status?: 'active' | 'deleted' | 'all'
   sort?: 'name' | 'brand' | 'package' | 'category' | 'stock' | 'price' | 'updated'
   order?: 'asc' | 'desc'
   page?: number
@@ -186,6 +188,7 @@ function mapComponent(row: SqlRow): ComponentRow {
     description: (row.description as string) ?? null,
     price: row.price == null ? null : Number(row.price),
     stockQuantity: Number(row.stock_quantity ?? 0),
+    status: row.status === 'deleted' ? 'deleted' : 'active',
     referenceDesignator: (row.reference_designator as string) ?? null,
     threshold: Number(row.threshold ?? 0),
     productUrl: (row.product_url as string) ?? null,
@@ -338,6 +341,10 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
 
   const where: string[] = []
   const args: InValue[] = []
+  if (query.status !== 'all') {
+    where.push('status = ?')
+    args.push(query.status === 'deleted' ? 'deleted' : 'active')
+  }
   if (q && q.trim()) {
     where.push('(part_number LIKE ? OR mpn LIKE ? OR name LIKE ?)')
     const like = `%${q.trim()}%`
@@ -416,7 +423,7 @@ export async function getComponentsByPartNumbers(
               AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
             ORDER BY transactions.id DESC LIMIT 1
           ) AS reference_designator
-          FROM components WHERE part_number IN (${placeholders})`,
+          FROM components WHERE part_number IN (${placeholders}) AND status = 'active'`,
     args: pns,
   })
   return new Map(result.rows.map((row) => {
@@ -428,7 +435,7 @@ export async function getComponentsByPartNumbers(
 /** 元件表中出现的全部分类（筛选下拉用） */
 export async function listCategories(): Promise<string[]> {
   const result = await getDb().execute({
-    sql: "SELECT DISTINCT category FROM components WHERE category IS NOT NULL AND category != '' ORDER BY category",
+    sql: "SELECT DISTINCT category FROM components WHERE status = 'active' AND category IS NOT NULL AND category != '' ORDER BY category",
   })
   return result.rows.map((row) => row.category as string)
 }
@@ -436,7 +443,7 @@ export async function listCategories(): Promise<string[]> {
 /** 元件表中出现的全部封装（筛选下拉用） */
 export async function listPackageNames(): Promise<string[]> {
   const result = await getDb().execute({
-    sql: "SELECT DISTINCT package_name FROM components WHERE package_name IS NOT NULL AND package_name != '' ORDER BY package_name",
+    sql: "SELECT DISTINCT package_name FROM components WHERE status = 'active' AND package_name IS NOT NULL AND package_name != '' ORDER BY package_name",
   })
   return result.rows.map((row) => row.package_name as string)
 }
@@ -542,7 +549,7 @@ export async function stockIn(
     })
   } else {
     stmts.push({
-      sql: 'UPDATE components SET stock_quantity = stock_quantity + ?, updated_at = ? WHERE part_number = ?',
+      sql: "UPDATE components SET stock_quantity = stock_quantity + ?, status = 'active', updated_at = ? WHERE part_number = ?",
       args: [qty, new Date().toISOString(), pn],
     })
   }
@@ -566,13 +573,26 @@ export async function stockIn(
   return (await getComponent(pn))!
 }
 
-/** 删除元件及其全部出入库流水，释放该元件曾占用的位号。 */
+/** 软删除元件：保留流水，库存归零并释放流水中的位号。 */
 export async function deleteComponent(partNumber: string): Promise<void> {
   const pn = normalizePartNumber(partNumber)
   await getDb().batch(
     [
-      { sql: 'DELETE FROM transactions WHERE part_number = ?', args: [pn] },
-      { sql: 'DELETE FROM components WHERE part_number = ?', args: [pn] },
+      {
+        sql: `UPDATE transactions
+              SET note = CASE
+                           WHEN reference_designator IS NULL OR trim(reference_designator) = '' THEN note
+                           WHEN note IS NULL OR trim(note) = '' THEN '已删除，原位号 ' || reference_designator
+                           ELSE note || '；已删除，原位号 ' || reference_designator
+                         END,
+                  reference_designator = NULL
+              WHERE part_number = ?`,
+        args: [pn],
+      },
+      {
+        sql: "UPDATE components SET status = 'deleted', stock_quantity = 0, updated_at = ? WHERE part_number = ?",
+        args: [new Date().toISOString(), pn],
+      },
     ],
     'write',
   )
@@ -595,6 +615,9 @@ export async function stockOut(
 
   const existing = await getComponent(pn)
   if (!existing) throw new Error(`元件 ${pn} 不在库存中`)
+  if (existing.status === 'deleted') {
+    throw new Error(`元件 ${pn} 已删除，请重新入库`)
+  }
   if (existing.stockQuantity < qty) {
     throw new Error(`库存不足：当前 ${existing.stockQuantity}，需要 ${qty}`)
   }
@@ -632,6 +655,9 @@ export async function adjustStock(
 
   const existing = await getComponent(pn)
   if (!existing) throw new Error(`元件 ${pn} 不在库存中`)
+  if (existing.status === 'deleted') {
+    throw new Error(`元件 ${pn} 已删除，请重新入库`)
+  }
 
   const diff = actual - existing.stockQuantity
   await client.batch(
@@ -734,7 +760,8 @@ export async function dashboardStats(): Promise<DashboardStats> {
        COALESCE(SUM(stock_quantity), 0) AS total_stock,
        COALESCE(SUM(stock_quantity * COALESCE(price, 0)), 0) AS total_value,
        COALESCE(SUM(CASE WHEN threshold > 0 AND stock_quantity <= threshold THEN 1 ELSE 0 END), 0) AS low_count
-     FROM components`,
+     FROM components
+     WHERE status = 'active'`,
   )
   const r = result.rows[0]
   return {
@@ -749,7 +776,7 @@ export async function dashboardStats(): Promise<DashboardStats> {
 export async function listLowStock(limit = 20): Promise<ComponentRow[]> {
   const result = await getDb().execute({
     sql: `SELECT * FROM components
-          WHERE threshold > 0 AND stock_quantity <= threshold
+          WHERE status = 'active' AND threshold > 0 AND stock_quantity <= threshold
           ORDER BY (stock_quantity - threshold) ASC, part_number ASC
           LIMIT ?`,
     args: [limit],
@@ -763,6 +790,7 @@ export async function valueByCategory(): Promise<Array<{ category: string; value
     `SELECT COALESCE(NULLIF(category, ''), '未分类') AS category,
             SUM(stock_quantity * COALESCE(price, 0)) AS value
      FROM components
+     WHERE status = 'active'
      GROUP BY category
      ORDER BY value DESC`,
   )
@@ -775,6 +803,7 @@ export async function valueByPackage(): Promise<Array<{ packageName: string; val
     `SELECT COALESCE(NULLIF(package_name, ''), '未标注') AS package_name,
             SUM(stock_quantity * COALESCE(price, 0)) AS value
      FROM components
+     WHERE status = 'active'
      GROUP BY package_name
      ORDER BY value DESC`,
   )

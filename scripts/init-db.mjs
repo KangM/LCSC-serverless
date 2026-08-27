@@ -73,6 +73,13 @@ if (!transactionColumns.has('purchase_price')) {
   await client.execute('ALTER TABLE transactions ADD COLUMN purchase_price REAL')
 }
 
+const componentColumns = new Set(
+  (await client.execute('PRAGMA table_info(components)')).rows.map((row) => String(row.name)),
+)
+if (!componentColumns.has('status')) {
+  await client.execute("ALTER TABLE components ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+}
+
 // 位号是物理存储位置，非空时必须全局唯一（不区分大小写）。
 await client.execute(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_reference_designator

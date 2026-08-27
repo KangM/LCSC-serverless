@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { listComponents } from '@/lib/cache'
+import { getComponent, listComponents } from '@/lib/cache'
 import { stockIn } from '@/lib/db'
 import { lcsc, type ComponentDetail } from '@/lib/lcsc'
 
-/** GET /api/components?q=&category=&package=&sort=&order=&page=&pageSize= — 元件列表 */
+/** GET /api/components?q=&category=&package=&status=&sort=&order=&page=&pageSize= — 元件列表 */
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
   const data = await listComponents({
     q: sp.get('q') ?? undefined,
     category: sp.get('category') ?? undefined,
     packageName: sp.get('package') ?? undefined,
+    status: (sp.get('status') as 'active' | 'deleted' | 'all' | null) ?? undefined,
     sort: (sp.get('sort') as never) ?? undefined,
     order: (sp.get('order') as never) ?? undefined,
     page: sp.get('page') ? Number(sp.get('page')) : undefined,
@@ -42,10 +43,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: '入手价格必须是非负数字' }, { status: 400 })
   }
 
-  // 已存在则无需立创详情；不存在时：客户端给了 detail 就用，否则实时查
+  // 已存在（包括已删除状态）则无需立创详情；入库会恢复为正常状态。
+  // 不能用默认列表判断，因为列表会隐藏已删除元件。
   let effectiveDetail: ComponentDetail | null | undefined = detail
-  const existing = await listComponents({ q: partNumber.trim(), pageSize: 1 })
-  if (existing.total === 0) {
+  const existing = await getComponent(partNumber)
+  if (!existing) {
     if (!effectiveDetail) {
       effectiveDetail = await lcsc.lookupByPartNumber(partNumber)
     }

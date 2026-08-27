@@ -20,12 +20,15 @@ export default async function ComponentsPage({ searchParams }: Props) {
   const sort = get('sort')
   const order = get('order')
   const page = Number(get('page')) || 1
+  const statusParam = get('status')
+  const status = statusParam === 'deleted' || statusParam === 'all' ? statusParam : 'active'
 
   const [data, categories, packages] = await Promise.all([
     listComponents({
       q: get('q'),
       category: get('category'),
       packageName: get('package'),
+      status,
       sort: sort && ALLOWED_SORTS.has(sort) ? (sort as never) : 'updated',
       order: order === 'asc' ? 'asc' : 'desc',
       page,
@@ -46,6 +49,7 @@ export default async function ComponentsPage({ searchParams }: Props) {
           q: get('q') ?? '',
           category: get('category') ?? '',
           packageName: get('package') ?? '',
+          status,
           sort: sort ?? 'updated',
           order: order ?? 'desc',
           page,

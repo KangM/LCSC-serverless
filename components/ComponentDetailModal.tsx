@@ -117,7 +117,7 @@ export function ComponentDetailModal({
   }
 
   async function deleteAndReinbound() {
-    if (!window.confirm(`将删除 ${partNumber} 的全部库存和出入库记录，并释放其位号。此操作不可恢复。`)) return
+    if (!window.confirm(`将隐藏 ${partNumber}、库存归零并释放其位号。历史流水会保留，重新入库即可恢复。`)) return
     setDeleting(true)
     try {
       const res = await fetch(`/api/components/${encodeURIComponent(partNumber)}`, { method: 'DELETE' })
@@ -126,7 +126,7 @@ export function ComponentDetailModal({
         toast.error(data.error || '删除失败')
         return
       }
-      toast.success('已删除元件并释放位号，请重新入库')
+      toast.success('已标记删除并释放位号，请重新入库')
       onDeleted?.(partNumber)
       onChanged?.()
       onClose()

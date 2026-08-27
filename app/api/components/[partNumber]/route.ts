@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   return NextResponse.json({ ok: false, error: '未知 action' }, { status: 400 })
 }
 
-/** DELETE /api/components/[partNumber] — 删除元件及其全部流水，释放位号。 */
+/** DELETE /api/components/[partNumber] — 软删除元件、库存归零并释放位号，保留历史流水。 */
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const { partNumber } = await params
   const row = await getComponent(partNumber)

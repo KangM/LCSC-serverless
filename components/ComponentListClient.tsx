@@ -13,6 +13,7 @@ export interface ListState {
   q: string
   category: string
   packageName: string
+  status: 'active' | 'deleted' | 'all'
   sort: string
   order: string
   page: number
@@ -43,6 +44,7 @@ export function ComponentListClient({
   const [q, setQ] = useState(state.q)
   const [category, setCategory] = useState(state.category)
   const [packageName, setPackageName] = useState(state.packageName)
+  const [status, setStatus] = useState<ListState['status']>(state.status)
   const [sort, setSort] = useState(state.sort)
   const [order, setOrder] = useState(state.order)
 
@@ -63,17 +65,19 @@ export function ComponentListClient({
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkQty, setBulkQty] = useState('')
 
+  const selectableItems = useMemo(() => initial.items.filter((row) => row.status === 'active'), [initial.items])
   const allSelected = useMemo(
-    () => initial.items.length > 0 && initial.items.every((r) => selected.has(r.partNumber)),
-    [initial.items, selected],
+    () => selectableItems.length > 0 && selectableItems.every((r) => selected.has(r.partNumber)),
+    [selectableItems, selected],
   )
 
   function apply(partial: Partial<ListState>) {
-    const next = { q, category, packageName, sort, order, page: 1, ...partial }
+    const next = { q, category, packageName, status, sort, order, page: 1, ...partial }
     const sp = new URLSearchParams()
     if (next.q) sp.set('q', next.q)
     if (next.category) sp.set('category', next.category)
     if (next.packageName) sp.set('package', next.packageName)
+    if (next.status !== 'active') sp.set('status', next.status)
     if (next.sort && next.sort !== 'updated') sp.set('sort', next.sort)
     if (next.order && next.order !== 'desc') sp.set('order', next.order)
     if (next.page > 1) sp.set('page', String(next.page))
@@ -82,7 +86,7 @@ export function ComponentListClient({
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(initial.items.map((r) => r.partNumber)))
+    setSelected(allSelected ? new Set() : new Set(selectableItems.map((r) => r.partNumber)))
   }
 
   function toggleOne(pn: string) {
@@ -140,6 +144,17 @@ export function ComponentListClient({
             ))}
           </Select>
         </div>
+        <div className="w-28">
+          <Select value={status} onChange={(e) => {
+            const value = e.target.value as ListState['status']
+            setStatus(value)
+            apply({ status: value })
+          }}>
+            <option value="active">正常</option>
+            <option value="deleted">已删除</option>
+            <option value="all">全部状态</option>
+          </Select>
+        </div>
         <div className="w-36">
           <Select value={sort} onChange={(e) => { setSort(e.target.value); apply({ sort: e.target.value }) }}>
             {SORT_OPTIONS.map((o) => (
@@ -153,7 +168,7 @@ export function ComponentListClient({
             <option value="asc">升序</option>
           </Select>
         </div>
-        <Button variant="secondary" onClick={() => apply({ q, category, packageName })}>搜索</Button>
+        <Button variant="secondary" onClick={() => apply({ q, category, packageName, status })}>搜索</Button>
         <div className="flex-1" />
         <Button
           onClick={() => {
@@ -243,6 +258,7 @@ export function ComponentListClient({
                         type="checkbox"
                         checked={selected.has(row.partNumber)}
                         onChange={() => toggleOne(row.partNumber)}
+                        disabled={row.status === 'deleted'}
                         className="accent-blue-600"
                       />
                     </td>
@@ -264,6 +280,7 @@ export function ComponentListClient({
                             {row.partNumber}
                             {row.mpn ? ` · ${row.mpn}` : ''}
                           </div>
+                          {row.status === 'deleted' && <Badge color="red">已删除</Badge>}
                         </div>
                       </div>
                     </td>
