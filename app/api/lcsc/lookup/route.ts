@@ -26,7 +26,12 @@ export async function GET(request: NextRequest) {
     )
   }
   const dbStartedAt = performance.now()
-  const suggestedReferenceDesignator = await suggestReferenceDesignator(item.partNumber, item.category)
+  const suggestedReferenceDesignator = await suggestReferenceDesignator(
+    item.partNumber,
+    item.category,
+    item.packageName,
+    item.specifications,
+  )
   return setServerTiming(NextResponse.json({ ok: true, item, suggestedReferenceDesignator }), [
     { name: 'lcsc_queue', duration: lookup.timing.queueMs },
     { name: 'lcsc_fetch', duration: lookup.timing.fetchMs, description: lookup.timing.cache },

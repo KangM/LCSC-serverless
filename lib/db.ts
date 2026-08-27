@@ -240,6 +240,36 @@ function referencePrefix(category: string | null | undefined): 'R' | 'CL' | 'M' 
   return 'M'
 }
 
+const R1_0603_RESISTOR_LOCATIONS = new Map<string, string>([
+  ['0R', 'R1A1'], ['0.01R', 'R1A2'], ['0.1R', 'R1A3'], ['1R', 'R1A4'], ['2.2R', 'R1A5'], ['4.7R', 'R1A6'], ['10R', 'R1A7'], ['22R', 'R1A8'], ['47R', 'R1A9'],
+  ['100R', 'R1B1'], ['150R', 'R1B2'], ['220R', 'R1B3'], ['330R', 'R1B4'], ['470R', 'R1B5'], ['680R', 'R1B6'], ['1K', 'R1B7'], ['1.2K', 'R1B8'], ['1.5K', 'R1B9'],
+  ['1.8K', 'R1C1'], ['2.2K', 'R1C2'], ['2.7K', 'R1C3'], ['3.3K', 'R1C4'], ['3.9K', 'R1C5'], ['4.7K', 'R1C6'], ['5.1K', 'R1C7'], ['5.6K', 'R1C8'], ['6.8K', 'R1C9'],
+  ['7.5K', 'R1D1'], ['8.2K', 'R1D2'], ['9.1K', 'R1D3'], ['10K', 'R1D4'], ['12K', 'R1D5'], ['15K', 'R1D6'], ['18K', 'R1D7'], ['22K', 'R1D8'], ['27K', 'R1D9'],
+  ['33K', 'R1E1'], ['39K', 'R1E2'], ['47K', 'R1E3'], ['51K', 'R1E4'], ['56K', 'R1E5'], ['68K', 'R1E6'], ['75K', 'R1E7'], ['82K', 'R1E8'], ['91K', 'R1E9'],
+  ['100K', 'R1F1'], ['120K', 'R1F2'], ['150K', 'R1F3'], ['180K', 'R1F4'], ['220K', 'R1F5'], ['270K', 'R1F6'], ['330K', 'R1F7'], ['470K', 'R1F8'], ['1M', 'R1F9'],
+])
+
+function normalizeResistance(value: string | undefined): string | null {
+  if (!value) return null
+  const compact = value.trim().toUpperCase().replace(/\s/g, '').replace(/Ω/g, 'Ω')
+  const withoutUnit = compact.replace(/(?:Ω|OHM)$/i, '')
+  if (/^\d+(?:\.\d+)?[RKM]$/.test(withoutUnit)) return withoutUnit
+  if (/^\d+(?:\.\d+)?$/.test(withoutUnit)) return `${withoutUnit}R`
+  return null
+}
+
+function firstFreeReference(prefix: 'R' | 'CL' | 'M', used: Set<string>, startBox = 1): string | null {
+  for (let box = startBox; box <= 9; box++) {
+    for (const row of 'ABCDEFGH') {
+      for (let column = 1; column <= 9; column++) {
+        const candidate = `${prefix}${box}${row}${column}`
+        if (!used.has(candidate)) return candidate
+      }
+    }
+  }
+  return null
+}
+
 /**
  * 推荐一个空闲位号：R1A1 / CL1A1 / M1A1。
  * 已入库元件优先复用其原位号；同时兼容旧的 R1-A-1 写法，避免误判为空位。
@@ -247,6 +277,8 @@ function referencePrefix(category: string | null | undefined): 'R' | 'CL' | 'M' 
 export async function suggestReferenceDesignator(
   partNumber: string,
   category: string | null | undefined,
+  packageName?: string | null,
+  specifications?: Record<string, string>,
 ): Promise<string | null> {
   const pn = normalizePartNumber(partNumber)
   const rows = await getDb().execute(
@@ -263,15 +295,23 @@ export async function suggestReferenceDesignator(
   }
 
   const prefix = referencePrefix(category)
-  for (let box = 1; box <= 9; box++) {
-    for (const row of 'ABCDEFGH') {
+  if (prefix === 'R') {
+    const resistorValue = Object.entries(specifications ?? {}).find(([key]) => key.includes('阻值'))?.[1]
+    const resistance = /^0603(?:\D|$)/.test(packageName?.trim() ?? '')
+      ? normalizeResistance(resistorValue)
+      : null
+    const fixedLocation = resistance ? R1_0603_RESISTOR_LOCATIONS.get(resistance) : null
+    if (fixedLocation && !used.has(fixedLocation)) return fixedLocation
+
+    for (const row of 'GH') {
       for (let column = 1; column <= 9; column++) {
-        const candidate = `${prefix}${box}${row}${column}`
+        const candidate = `R1${row}${column}`
         if (!used.has(candidate)) return candidate
       }
     }
+    return firstFreeReference('R', used, 2)
   }
-  return null
+  return firstFreeReference(prefix, used)
 }
 
 const SORT_COLUMNS: Record<string, string> = {
