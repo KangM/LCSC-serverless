@@ -83,6 +83,7 @@ export function InboundModal({
         return
       }
       setDetail(data.item)
+      setReferenceDesignator((current) => current || data.suggestedReferenceDesignator || '')
       setStep('confirm')
     } catch {
       setError('查询失败，请检查网络')
@@ -247,8 +248,8 @@ export function InboundModal({
               />
             </div>
             <div>
-              <Label>位号（可选）</Label>
-              <Input value={referenceDesignator} onChange={(e) => setReferenceDesignator(e.target.value)} placeholder="如 R12、C3-C6" />
+              <Label>位号（已自动推荐，可修改）</Label>
+              <Input value={referenceDesignator} onChange={(e) => setReferenceDesignator(e.target.value)} placeholder="如 R1A1、CL1A1、M1A1" />
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">

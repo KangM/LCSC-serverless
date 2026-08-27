@@ -232,6 +232,48 @@ export function normalizePartNumber(pn: string): string {
   return pn.trim().toUpperCase()
 }
 
+/** 根据立创分类选择物理收纳盒前缀。 */
+function referencePrefix(category: string | null | undefined): 'R' | 'CL' | 'M' {
+  const value = category ?? ''
+  if (value.includes('电阻')) return 'R'
+  if (value.includes('电容') || value.includes('电感')) return 'CL'
+  return 'M'
+}
+
+/**
+ * 推荐一个空闲位号：R1A1 / CL1A1 / M1A1。
+ * 已入库元件优先复用其原位号；同时兼容旧的 R1-A-1 写法，避免误判为空位。
+ */
+export async function suggestReferenceDesignator(
+  partNumber: string,
+  category: string | null | undefined,
+): Promise<string | null> {
+  const pn = normalizePartNumber(partNumber)
+  const rows = await getDb().execute(
+    `SELECT part_number, reference_designator FROM transactions
+     WHERE reference_designator IS NOT NULL AND trim(reference_designator) <> ''`,
+  )
+  const used = new Set<string>()
+
+  for (const row of rows.rows) {
+    const reference = String(row.reference_designator).trim()
+    if (normalizePartNumber(String(row.part_number)) === pn) return reference
+    const canonical = reference.replace(/[\s-]/g, '').toUpperCase()
+    if (/^(?:R|CL|M)[1-9][A-H][1-9]$/.test(canonical)) used.add(canonical)
+  }
+
+  const prefix = referencePrefix(category)
+  for (let box = 1; box <= 9; box++) {
+    for (const row of 'ABCDEFGH') {
+      for (let column = 1; column <= 9; column++) {
+        const candidate = `${prefix}${box}${row}${column}`
+        if (!used.has(candidate)) return candidate
+      }
+    }
+  }
+  return null
+}
+
 const SORT_COLUMNS: Record<string, string> = {
   name: 'name',
   brand: 'brand',

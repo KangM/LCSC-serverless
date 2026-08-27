@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { lcsc } from '@/lib/lcsc'
+import { suggestReferenceDesignator } from '@/lib/db'
 import { setServerTiming } from '@/lib/server-timing'
 
 /**
@@ -24,9 +25,12 @@ export async function GET(request: NextRequest) {
       ],
     )
   }
-  return setServerTiming(NextResponse.json({ ok: true, item }), [
+  const dbStartedAt = performance.now()
+  const suggestedReferenceDesignator = await suggestReferenceDesignator(item.partNumber, item.category)
+  return setServerTiming(NextResponse.json({ ok: true, item, suggestedReferenceDesignator }), [
     { name: 'lcsc_queue', duration: lookup.timing.queueMs },
     { name: 'lcsc_fetch', duration: lookup.timing.fetchMs, description: lookup.timing.cache },
+    { name: 'db', duration: performance.now() - dbStartedAt },
     { name: 'total', duration: performance.now() - startedAt },
   ])
 }
