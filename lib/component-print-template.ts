@@ -14,17 +14,39 @@ interface PrintTemplate {
   matches: (category: string) => boolean
   shortCategory: string | ((category: string) => string)
   fields: PrintField[]
+  allowFallback?: boolean
 }
 
 const firstSegment = (value: string) => value.split(/[;；]/, 1)[0].trim()
 const withoutCount = (value: string) => value.replace(/^\s*\d+\s*个\s*/, '').trim()
 const withoutResistorSuffix = (value: string) => value.replace(/电阻$/, '').trim()
+const withPrefix = (prefix: string) => (value: string) => `${prefix} ${value}`
 
 const PRINT_TEMPLATES: PrintTemplate[] = [
   {
     matches: (category) => category.includes('静电和浪涌'),
     shortCategory: 'ESD',
-    fields: [],
+    fields: [
+      { keys: ['极性', '二极管配置'], format: withoutCount },
+      { keys: ['反向截止电压(Vrwm)', '反向截止电压', '反向工作电压'], format: withPrefix('Vrwm') },
+      { keys: ['钳位电压(Vc)', '钳位电压'], format: withPrefix('Vc') },
+      // 数值通常已带脉冲条件（如 3A@8/20us），额外的 Ipp 前缀只会挤占标签空间。
+      { keys: ['峰值脉冲电流(Ipp)', '峰值脉冲电流'] },
+      { keys: ['击穿电压(Vbr)', '击穿电压'], format: withPrefix('Vbr') },
+    ],
+    allowFallback: false,
+  },
+  {
+    matches: (category) => category.includes('发光二极管') || category.toUpperCase().includes('LED'),
+    shortCategory: 'LED',
+    fields: [
+      { keys: ['正向电压(Vf)', '正向电压'], format: withPrefix('Vf') },
+      { keys: ['发光颜色', '颜色'] },
+      { keys: ['耗散功率(Pd)', '耗散功率', '功率'] },
+      { keys: ['主波长', '主波长(nm)', '峰值波长', '波长'] },
+    ],
+    // 灯头尺寸等原始说明通常很长，不适合标签上的固定四列。
+    allowFallback: false,
   },
   {
     matches: (category) => category.includes('贴片电阻') || category.includes('插件电阻'),
@@ -57,7 +79,8 @@ const PRINT_TEMPLATES: PrintTemplate[] = [
     fields: [
       { keys: ['电感值'] },
       { keys: ['精度'] },
-      { keys: ['额定电流'] },
+      { keys: ['额定电流'], format: withPrefix('Ir') },
+      { keys: ['饱和电流'], format: withPrefix('Isat') },
       { keys: ['直流电阻(DCR)', '直流电阻'], format: (value) => `DCR ${value}` },
     ],
   },
@@ -159,9 +182,11 @@ export function formatComponentPrintFields(categoryRaw: unknown, specificationsR
     if (value) values.push(value)
   }
 
-  for (const [key, value] of Object.entries(specifications)) {
-    if (values.length >= 4) break
-    if (!usedKeys.has(key) && value.trim()) values.push(value.trim())
+  if (template?.allowFallback !== false) {
+    for (const [key, value] of Object.entries(specifications)) {
+      if (values.length >= 4) break
+      if (!usedKeys.has(key) && value.trim()) values.push(value.trim())
+    }
   }
 
   return {
