@@ -16,6 +16,23 @@ interface PreviewItem extends ImportRow {
   error?: string
 }
 
+interface BomRow {
+  designator: string
+  name: string
+  footprint: string
+  supplier: string
+  quantity: number
+}
+
+interface BomCheckItem extends BomRow {
+  matchedPartNumber: string | null
+  matchedName: string | null
+  referenceDesignator: string | null
+  stockQuantity: number
+  status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
+  message: string
+}
+
 /** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
 function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -56,6 +73,45 @@ function parseCsv(text: string): ImportRow[] {
   return rows
 }
 
+/** 解析立创/EDA 常见的带引号 CSV。 */
+function parseCsvMatrix(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = [], cell = '', quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '"') {
+      if (quoted && text[i + 1] === '"') { cell += '"'; i++ } else quoted = !quoted
+    } else if (ch === ',' && !quoted) { row.push(cell); cell = ''
+    } else if ((ch === '\n' || ch === '\r') && !quoted) {
+      if (ch === '\r' && text[i + 1] === '\n') i++
+      row.push(cell); if (row.some((v) => v.trim())) rows.push(row)
+      row = []; cell = ''
+    } else cell += ch
+  }
+  row.push(cell); if (row.some((v) => v.trim())) rows.push(row)
+  return rows
+}
+
+function parseBomCsv(text: string): BomRow[] {
+  const matrix = parseCsvMatrix(text)
+  if (matrix.length < 2) return []
+  const header = matrix[0].map((v) => v.trim().toLowerCase())
+  const col = {
+    designator: header.findIndex((v) => ['designator', 'reference', '位号'].includes(v)),
+    name: header.findIndex((v) => ['name', 'value', 'mpn', '型号', '名称'].includes(v)),
+    footprint: header.findIndex((v) => ['footprint', 'package', '封装'].includes(v)),
+    supplier: header.findIndex((v) => ['supplier', '供应商'].includes(v)),
+    quantity: header.findIndex((v) => ['quantity', 'qty', '数量'].includes(v)),
+  }
+  return matrix.slice(1).map((cells) => ({
+    designator: col.designator >= 0 ? (cells[col.designator] ?? '').trim() : '',
+    name: col.name >= 0 ? (cells[col.name] ?? '').trim() : '',
+    footprint: col.footprint >= 0 ? (cells[col.footprint] ?? '').trim() : '',
+    supplier: col.supplier >= 0 ? (cells[col.supplier] ?? '').trim() : '',
+    quantity: Math.trunc(Number(col.quantity >= 0 ? cells[col.quantity] : 0)),
+  }))
+}
+
 export function ImportClient() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
@@ -64,6 +120,11 @@ export function ImportClient() {
   const [result, setResult] = useState<{ succeeded: string[]; failed: Array<{ partNumber: string; error: string }> } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const bomFileRef = useRef<HTMLInputElement>(null)
+  const [bomFileName, setBomFileName] = useState('')
+  const [bomRows, setBomRows] = useState<BomRow[]>([])
+  const [bomResult, setBomResult] = useState<BomCheckItem[] | null>(null)
+  const [bomLoading, setBomLoading] = useState(false)
   // 流水导出时间范围：默认最近一个月（与流水页默认一致）
   const [exportFrom, setExportFrom] = useState(() => {
     const d = new Date()
@@ -134,6 +195,24 @@ export function ImportClient() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function onBomFile(file: File) {
+    setBomFileName(file.name)
+    setBomResult(null)
+    const reader = new FileReader()
+    reader.onload = () => setBomRows(parseBomCsv(String(reader.result ?? '')))
+    reader.readAsText(file, 'utf-8')
+  }
+
+  async function checkBomFile() {
+    setBomLoading(true)
+    try {
+      const res = await fetch('/api/bom/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: bomRows }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '核对失败')
+      setBomResult(data.items)
+    } catch (e) { setError(e instanceof Error ? e.message : 'BOM 核对失败') } finally { setBomLoading(false) }
   }
 
   const okCount = preview?.filter((p) => p.status === 'ok').length ?? 0
@@ -229,6 +308,30 @@ export function ImportClient() {
           )}
         </Card>
       )}
+
+      <Card>
+        <h2 className="section_title mb-3 text-sm font-semibold text-neutral-500">BOM 库存核对</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <input ref={bomFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && onBomFile(e.target.files[0])} />
+          <Button variant="secondary" onClick={() => bomFileRef.current?.click()}>选择 BOM CSV</Button>
+          {bomFileName && <span className="text-sm text-neutral-600">{bomFileName}（{bomRows.length} 行）</span>}
+          <Button onClick={checkBomFile} disabled={!bomRows.length || bomLoading}>{bomLoading ? '核对中…' : '开始核对'}</Button>
+        </div>
+        <p className="hint_text mt-2 text-xs text-neutral-400">支持 Designator、Name、Footprint、Quantity 列；会按名称/型号、封装和规格匹配现有库存。</p>
+        {bomResult && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-neutral-200 text-left text-neutral-500"><th className="px-2 py-2">位号</th><th className="px-2 py-2">BOM 名称</th><th className="px-2 py-2">匹配元件</th><th className="px-2 py-2 text-right">需求</th><th className="px-2 py-2 text-right">库存</th><th className="px-2 py-2">结果</th></tr></thead>
+              <tbody>{bomResult.map((item, index) => <tr key={`${item.designator}-${index}`} className="border-b border-neutral-100">
+                <td className="px-2 py-1.5 font-mono">{item.designator || '-'}</td><td className="px-2 py-1.5">{item.name || '-'}</td>
+                <td className="px-2 py-1.5">{item.matchedPartNumber ? `${item.matchedPartNumber}${item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}` : '-'}</td>
+                <td className="px-2 py-1.5 text-right">{item.quantity || '-'}</td><td className="px-2 py-1.5 text-right">{item.stockQuantity}</td>
+                <td className={`px-2 py-1.5 ${item.status === 'sufficient' ? 'text-green-600' : item.status === 'insufficient' ? 'text-amber-600' : 'text-red-600'}`}>{item.message}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <Card className="export_panel">
         <h2 className="section_title mb-3 text-sm font-semibold text-neutral-500">导出</h2>
