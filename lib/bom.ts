@@ -20,11 +20,17 @@ export interface BomCheckItem extends BomRow {
 
 const compact = (value: string) => value.toUpperCase().replace(/[\s_\-./()[\]{}]/g, '')
 
+/** 统一 BOM 与立创规格中常见的电阻单位写法：22R = 22Ω = 22OHM。 */
+function canonicalValue(value: string): string {
+  const normalized = compact(value).replace(/(?:Ω|OHM|欧姆)$/u, '')
+  return /^\d+(?:\.\d+)?$/.test(normalized) ? `${normalized}R` : normalized
+}
+
 function matchesName(row: ComponentRow, name: string): boolean {
-  const target = compact(name)
+  const target = canonicalValue(name)
   if (!target) return false
   const candidates = [row.partNumber, row.mpn ?? '', row.name ?? '', ...Object.values(row.specifications)]
-  if (candidates.some((value) => compact(String(value)) === target)) return true
+  if (candidates.some((value) => canonicalValue(String(value)) === target)) return true
   // Common BOM LED labels (LED_R/LED_G/LED_B) correspond to color in LCSC specs.
   const color = target === 'LEDR' ? '红' : target === 'LEDG' ? '绿' : target === 'LEDB' ? '蓝' : ''
   return Boolean(color && Object.values(row.specifications).some((value) => value.includes(color)))
