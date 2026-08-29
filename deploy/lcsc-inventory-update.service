@@ -1,0 +1,11 @@
+[Unit]
+Description=Deploy lcsc-inventory when origin/master changes
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=u
+WorkingDirectory=/home/u/lcsc-inventory
+ExecStart=/home/u/lcsc-inventory/scripts/deploy-if-updated.sh

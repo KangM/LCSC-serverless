@@ -25,7 +25,14 @@ function csvResponse(filename: string, rows: Array<Array<unknown>>): NextRespons
 function timestampedFilename(prefix: string): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).reduce<Record<string, string>>((out, part) => {
+    out[part.type] = part.value
+    return out
+  }, {})
+  const stamp = `${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}${parts.second}`
   return `${prefix}-${stamp}.csv`
 }
 

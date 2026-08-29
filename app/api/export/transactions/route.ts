@@ -6,6 +6,15 @@ function csvCell(value: unknown): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
+function formatChinaTime(value: string): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(value)).replace(' ', 'T')
+}
+
 /** GET /api/export/transactions?pn=&type=&from=&to= — 流水 CSV（支持与页面一致的筛选） */
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
@@ -24,7 +33,7 @@ export async function GET(request: NextRequest) {
   ]
   for (const t of data.items) {
     rows.push([
-      t.id, new Date(t.createdAt).toISOString(), t.partNumber, t.name,
+      t.id, formatChinaTime(t.createdAt), t.partNumber, t.name,
       t.type, t.quantity, t.beforeQty, t.afterQty, t.referenceDesignator, t.purchasePrice, t.note, t.operator,
     ])
   }
