@@ -517,17 +517,23 @@ export async function stockIn(
   const qty = Math.max(1, Math.trunc(quantity))
   const client = getDb()
   const referenceDesignator = options.referenceDesignator?.trim() || null
+  let transactionReferenceDesignator = referenceDesignator
 
   if (referenceDesignator) {
     const existingReference = await client.execute({
-      sql: `SELECT 1 FROM transactions
+      sql: `SELECT part_number FROM transactions
             WHERE reference_designator = ? COLLATE NOCASE
-              AND part_number <> ?
             LIMIT 1`,
-      args: [referenceDesignator, pn],
+      args: [referenceDesignator],
     })
     if (existingReference.rows.length > 0) {
-      throw new Error(`位号已被占用：${referenceDesignator}`)
+      const owner = normalizePartNumber(String(existingReference.rows[0].part_number ?? ''))
+      if (owner === pn) {
+        // 位号是元件的物理位置，唯一索引只允许保存一份；重复入库沿用原位号即可。
+        transactionReferenceDesignator = null
+      } else {
+        throw new Error(`位号已被占用：${referenceDesignator}`)
+      }
     }
   }
 
@@ -565,7 +571,7 @@ export async function stockIn(
           ) VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       pn, qty, beforeQty, beforeQty + qty,
-      referenceDesignator,
+      transactionReferenceDesignator,
       options.purchasePrice ?? null,
       options.note ?? null, options.operator ?? null,
     ],
