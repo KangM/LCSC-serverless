@@ -520,8 +520,11 @@ export async function stockIn(
 
   if (referenceDesignator) {
     const existingReference = await client.execute({
-      sql: 'SELECT 1 FROM transactions WHERE reference_designator = ? COLLATE NOCASE LIMIT 1',
-      args: [referenceDesignator],
+      sql: `SELECT 1 FROM transactions
+            WHERE reference_designator = ? COLLATE NOCASE
+              AND part_number <> ?
+            LIMIT 1`,
+      args: [referenceDesignator, pn],
     })
     if (existingReference.rows.length > 0) {
       throw new Error(`位号已被占用：${referenceDesignator}`)
