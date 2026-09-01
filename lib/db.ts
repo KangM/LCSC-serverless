@@ -265,9 +265,12 @@ function normalizeResistance(value: string | undefined): string | null {
 }
 
 function firstFreeReference(prefix: ReferencePrefix, used: Set<string>, startBox = 1): string | null {
+  const rows = prefix === 'B' ? 'ABCDE' : 'ABCDEFGH'
+  const maxColumn = prefix === 'B' ? 3 : 9
+
   for (let box = startBox; box <= 9; box++) {
-    for (const row of 'ABCDEFGH') {
-      for (let column = 1; column <= 9; column++) {
+    for (const row of rows) {
+      for (let column = 1; column <= maxColumn; column++) {
         const candidate = `${prefix}${box}${row}${column}`
         if (!used.has(candidate)) return candidate
       }
