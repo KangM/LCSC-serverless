@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getComponent } from '@/lib/cache'
-import { deleteComponent, setThreshold, upsertComponentFromLcsc } from '@/lib/db'
+import { deleteComponent, setReferenceDesignator, setThreshold, upsertComponentFromLcsc } from '@/lib/db'
 import { lcsc } from '@/lib/lcsc'
 
 type Params = { params: Promise<{ partNumber: string }> }
@@ -14,8 +14,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 }
 
 /**
- * PATCH /api/components/[partNumber] — 修改阈值 / 刷新立创信息
- * body: { action: 'threshold', threshold: number } | { action: 'refresh' }
+ * PATCH /api/components/[partNumber] — 修改阈值、位号或刷新立创信息
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { partNumber } = await params
@@ -28,6 +27,21 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
     await setThreshold(partNumber, threshold)
     return NextResponse.json({ ok: true, item: await getComponent(partNumber) })
+  }
+
+  if (body?.action === 'referenceDesignator') {
+    if (typeof body.referenceDesignator !== 'string') {
+      return NextResponse.json({ ok: false, error: '位号必须是文本' }, { status: 400 })
+    }
+    try {
+      const item = await setReferenceDesignator(partNumber, body.referenceDesignator)
+      return NextResponse.json({ ok: true, item })
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, error: error instanceof Error ? error.message : '位号保存失败' },
+        { status: 400 },
+      )
+    }
   }
 
   if (body?.action === 'refresh') {

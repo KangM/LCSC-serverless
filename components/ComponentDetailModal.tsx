@@ -42,6 +42,8 @@ export function ComponentDetailModal({
   const [stockTarget, setStockTarget] = useState<{ mode: StockMode } | null>(null)
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [thresholdValue, setThresholdValue] = useState('0')
+  const [editingReference, setEditingReference] = useState(false)
+  const [referenceValue, setReferenceValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -62,6 +64,7 @@ export function ComponentDetailModal({
       }
       setRow(detail.item)
       setThresholdValue(String(detail.item.threshold ?? 0))
+      setReferenceValue(detail.item.referenceDesignator ?? '')
       setTxs(tx.items ?? [])
     } catch {
       setError('加载失败，请重试')
@@ -89,6 +92,23 @@ export function ComponentDetailModal({
     }
     toast.success('阈值已更新')
     setEditingThreshold(false)
+    void load()
+    onChanged?.()
+  }
+
+  async function saveReferenceDesignator() {
+    const res = await fetch(`/api/components/${encodeURIComponent(partNumber)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'referenceDesignator', referenceDesignator: referenceValue }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      toast.error(data.error || '位号保存失败')
+      return
+    }
+    toast.success('位号已更新')
+    setEditingReference(false)
     void load()
     onChanged?.()
   }
@@ -213,6 +233,30 @@ export function ComponentDetailModal({
                   </Button>
                 )}
               </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-neutral-600">
+              <span>位号：</span>
+              {editingReference ? (
+                <>
+                  <Input
+                    value={referenceValue}
+                    onChange={(e) => setReferenceValue(e.target.value)}
+                    placeholder="留空释放位号"
+                    className="w-32 !py-1"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={saveReferenceDesignator}>保存</Button>
+                  <Button size="sm" variant="secondary" onClick={() => {
+                    setReferenceValue(row.referenceDesignator ?? '')
+                    setEditingReference(false)
+                  }}>取消</Button>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">{row.referenceDesignator ?? '未设置'}</span>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingReference(true)}>修改</Button>
+                </>
+              )}
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm text-neutral-600">
               <span>低库存阈值：</span>

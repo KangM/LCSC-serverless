@@ -4,13 +4,14 @@ import { suggestReferenceDesignator } from '@/lib/db'
 import { setServerTiming } from '@/lib/server-timing'
 
 /**
- * GET /api/lcsc/lookup?pn=C14663 — 实时/缓存查立创元件详情
+ * GET /api/lcsc/lookup?pn=C14663&large=1 — 实时/缓存查立创元件详情
  * 供入库弹窗输入编号后自动补全、扫码/OCR 流程使用。
  * 未找到或风控返回 404，客户端提示后回退手动关键词搜索。
  */
 export async function GET(request: NextRequest) {
   const startedAt = performance.now()
   const pn = request.nextUrl.searchParams.get('pn')?.trim()
+  const largeComponent = request.nextUrl.searchParams.get('large') === '1'
   if (!pn) return NextResponse.json({ ok: false, error: '缺少参数 pn' }, { status: 400 })
 
   const lookup = await lcsc.lookupByPartNumberTimed(pn)
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
     item.category,
     item.packageName,
     item.specifications,
+    largeComponent,
   )
   return setServerTiming(NextResponse.json({ ok: true, item, suggestedReferenceDesignator }), [
     { name: 'lcsc_queue', duration: lookup.timing.queueMs },

@@ -31,6 +31,7 @@ export function InboundModal({
   const [detail, setDetail] = useState<ComponentDetail | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [referenceDesignator, setReferenceDesignator] = useState('')
+  const [largeComponent, setLargeComponent] = useState(false)
   const [purchasePrice, setPurchasePrice] = useState('')
   const [priceMode, setPriceMode] = useState<'unit' | 'total'>('total')
   const [note, setNote] = useState('')
@@ -47,6 +48,7 @@ export function InboundModal({
     setDetail(null)
     setQuantity(1)
     setReferenceDesignator('')
+    setLargeComponent(false)
     setPurchasePrice('')
     setPriceMode('total')
     setNote('')
@@ -69,11 +71,11 @@ export function InboundModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPartNumber])
 
-  async function lookup(pn: string) {
+  async function lookup(pn: string, large = largeComponent, replaceReference = false) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/lcsc/lookup?pn=${encodeURIComponent(pn)}`, {
+      const res = await fetch(`/api/lcsc/lookup?pn=${encodeURIComponent(pn)}${large ? '&large=1' : ''}`, {
         signal: AbortSignal.timeout(15_000),
       })
       const data = await res.json()
@@ -83,7 +85,7 @@ export function InboundModal({
         return
       }
       setDetail(data.item)
-      setReferenceDesignator((current) => current || data.suggestedReferenceDesignator || '')
+      setReferenceDesignator((current) => replaceReference ? (data.suggestedReferenceDesignator || '') : current || data.suggestedReferenceDesignator || '')
       setStep('confirm')
     } catch {
       setError('查询失败，请检查网络')
@@ -248,8 +250,24 @@ export function InboundModal({
               />
             </div>
             <div>
-              <Label>位号（已自动推荐，可修改）</Label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <Label>位号（已自动推荐，可修改）</Label>
+                <label className="flex items-center gap-1.5 text-xs text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={largeComponent}
+                    onChange={(e) => {
+                      const large = e.target.checked
+                      setLargeComponent(large)
+                      void lookup(detail.partNumber, large, true)
+                    }}
+                    className="accent-blue-600"
+                  />
+                  大号元件
+                </label>
+              </div>
               <Input value={referenceDesignator} onChange={(e) => setReferenceDesignator(e.target.value)} placeholder="如 R1A1、CL1A1、M1A1" />
+              {largeComponent && <p className="mt-1 text-xs text-neutral-500">大盒位号以 B 开头，例如 B1A1</p>}
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">

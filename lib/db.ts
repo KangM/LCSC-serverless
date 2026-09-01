@@ -236,7 +236,10 @@ export function normalizePartNumber(pn: string): string {
 }
 
 /** 根据立创分类选择物理收纳盒前缀。 */
-function referencePrefix(category: string | null | undefined): 'R' | 'CL' | 'M' {
+type ReferencePrefix = 'R' | 'CL' | 'M' | 'B'
+
+function referencePrefix(category: string | null | undefined, largeComponent = false): ReferencePrefix {
+  if (largeComponent) return 'B'
   const value = category ?? ''
   if (value.includes('电阻')) return 'R'
   if (value.includes('电容') || value.includes('电感')) return 'CL'
@@ -261,7 +264,7 @@ function normalizeResistance(value: string | undefined): string | null {
   return null
 }
 
-function firstFreeReference(prefix: 'R' | 'CL' | 'M', used: Set<string>, startBox = 1): string | null {
+function firstFreeReference(prefix: ReferencePrefix, used: Set<string>, startBox = 1): string | null {
   for (let box = startBox; box <= 9; box++) {
     for (const row of 'ABCDEFGH') {
       for (let column = 1; column <= 9; column++) {
@@ -282,6 +285,7 @@ export async function suggestReferenceDesignator(
   category: string | null | undefined,
   packageName?: string | null,
   specifications?: Record<string, string>,
+  largeComponent = false,
 ): Promise<string | null> {
   const pn = normalizePartNumber(partNumber)
   const rows = await getDb().execute(
@@ -294,10 +298,10 @@ export async function suggestReferenceDesignator(
     const reference = String(row.reference_designator).trim()
     if (normalizePartNumber(String(row.part_number)) === pn) return reference
     const canonical = reference.replace(/[\s-]/g, '').toUpperCase()
-    if (/^(?:R|CL|M)[1-9][A-H][1-9]$/.test(canonical)) used.add(canonical)
+    if (/^(?:R|CL|M|B)[1-9][A-H][1-9]$/.test(canonical)) used.add(canonical)
   }
 
-  const prefix = referencePrefix(category)
+  const prefix = referencePrefix(category, largeComponent)
   if (prefix === 'R') {
     const resistorValue = Object.entries(specifications ?? {}).find(([key]) => key.includes('阻值'))?.[1]
     const resistance = /^0603(?:\D|$)/.test(packageName?.trim() ?? '')
@@ -606,6 +610,42 @@ export async function deleteComponent(partNumber: string): Promise<void> {
     'write',
   )
   await invalidateCache()
+}
+
+/** 修改元件物理位号；空值会释放位号，其他元件不可重复占用。 */
+export async function setReferenceDesignator(partNumber: string, value: string | null): Promise<ComponentRow> {
+  const pn = normalizePartNumber(partNumber)
+  const referenceDesignator = value?.trim() || null
+  const client = getDb()
+
+  if (referenceDesignator) {
+    const conflict = await client.execute({
+      sql: `SELECT part_number FROM transactions
+            WHERE reference_designator = ? COLLATE NOCASE AND part_number <> ?
+            LIMIT 1`,
+      args: [referenceDesignator, pn],
+    })
+    if (conflict.rows.length > 0) throw new Error(`位号已被占用：${referenceDesignator}`)
+  }
+
+  const current = await client.execute({
+    sql: `SELECT id FROM transactions
+          WHERE part_number = ? AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+          ORDER BY id DESC LIMIT 1`,
+    args: [pn],
+  })
+  const target = current.rows[0] ?? (await client.execute({
+    sql: 'SELECT id FROM transactions WHERE part_number = ? ORDER BY id DESC LIMIT 1',
+    args: [pn],
+  })).rows[0]
+  if (!target) throw new Error(`元件 ${pn} 没有可更新的入库记录`)
+
+  await client.execute({
+    sql: 'UPDATE transactions SET reference_designator = ? WHERE id = ?',
+    args: [referenceDesignator, Number(target.id)],
+  })
+  await invalidateCache()
+  return (await getComponent(pn))!
 }
 
 /**
