@@ -184,5 +184,8 @@ sudo docker compose start app
   仓库会随时间增长（当前单库压缩后约几十 KB，一年约十几 MB）。仓库过大时可在备份仓库执行
   `git clone --depth 30` 重建，或改用 `rclone` 钩子替代 git。
 - 未配置 git 远端时脚本只本地提交并打印提示，不会失败。
+- 推送失败会自动退避重试（5s/10s/20s），次数用 `BACKUP_PUSH_RETRIES` 控制（默认 3）。
+  网络抖动导致的偶发失败通常重试即恢复；全部失败也不影响本次备份，本地提交保留，
+  由下次任务连同新备份一起补推。
 - 可选对象存储：在 service 里加 `Environment=BACKUP_RCLONE_REMOTE=myremote:lcsc-backups`
   并安装配置好 rclone，脚本会在备份后额外上传一份。
