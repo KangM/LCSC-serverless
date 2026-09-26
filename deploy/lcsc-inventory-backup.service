@@ -1,0 +1,15 @@
+[Unit]
+Description=Backup lcsc-inventory SQLite database
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+User=u
+WorkingDirectory=/home/u/lcsc-inventory
+Environment=DB_PATH=/home/u/lcsc-inventory/data/inventory.db
+Environment=BACKUP_DIR=/home/u/lcsc-inventory/data/backups
+Environment=BACKUP_KEEP=30
+Environment=BACKUP_GIT_DIR=/home/u/lcsc-inventory-backups
+Environment=BACKUP_GIT_BRANCH=master
+ExecStart=/home/u/lcsc-inventory/scripts/backup-db.sh

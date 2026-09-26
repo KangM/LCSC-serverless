@@ -43,5 +43,8 @@ next-env.d.ts
 # 本地 SQLite 数据文件
 /data/
 
+# WorkBuddy 工作区数据
+.workbuddy/
+
 # Reasonix 工具状态文件
 .reasonix/

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily backup of lcsc-inventory SQLite database
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

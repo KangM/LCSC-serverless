@@ -82,6 +82,23 @@ node --conditions=react-server scripts/verify-lcsc.mjs  # 真实抓取立创
    定时器使用容器的 `Asia/Shanghai` 时区，每天 02:30 调用一次受 `CRON_SECRET`
    保护的刷新接口。
 
+### 数据库定时备份
+
+`scripts/backup-db.sh` 在宿主机做一致性热备份（不停止容器），每天 03:30 由 systemd timer 触发：
+快照 → gzip → 只保留最近 30 份 → 提交并推送到备份 git 仓库（异地留存）。
+
+完整安装步骤（含 SSH 免密、恢复方法、可选 rclone 上传）见 [`deploy/README.md`](deploy/README.md#数据库定时备份)。
+
+本地手动跑一份：
+
+```bash
+npm run db:backup                       # Linux / macOS
+bash scripts/backup-db.sh               # Windows 用 Git Bash 执行
+BACKUP_KEEP=10 npm run db:backup        # 只保留最近 10 份
+```
+
+> 注意：数据库 `settings` 表存有 OCR API Key 明文，备份仓库务必设为**私有**。
+
 ### Turso 数据迁移
 
 先停止写入，选择一个**不存在或为空**的目标 SQLite 路径，然后执行：
