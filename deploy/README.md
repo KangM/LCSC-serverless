@@ -136,6 +136,12 @@ git init -b master
 git remote add origin git@your-git-server:you/lcsc-inventory-backups.git
 ```
 
+> 命名易混：**目录**是复数 `~/lcsc-inventory-backups`，**systemd 单元名**是单数
+> `lcsc-inventory-backup.service`。别照着单元名建出 `~/lcsc-inventory-backup` 目录，否则会出现
+> 两个文件夹、备份跑在错误的那个里。
+> 若 `git remote add` 报 `remote origin already exists`，改用
+> `git remote set-url origin <url>`（仓库已存在时不要重复 add）。
+
 推送免密：把 systemd 里 `User=` 那个用户的 SSH 公钥加到远端（`ssh -T git@your-git-server` 验证一次，
 首次连接需 `ssh-keyscan your-git-server >> ~/.ssh/known_hosts`，否则定时器会因 host key 校验失败）。
 
