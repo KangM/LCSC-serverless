@@ -29,12 +29,30 @@ GIT_DIR="${BACKUP_GIT_DIR:-}"
 GIT_REMOTE="${BACKUP_GIT_REMOTE:-origin}"
 GIT_BRANCH="${BACKUP_GIT_BRANCH:-master}"
 RCLONE_REMOTE="${BACKUP_RCLONE_REMOTE:-}"
+PUSH_RETRIES="${BACKUP_PUSH_RETRIES:-3}"
 
 log() { printf '[backup] %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 die() { printf '[backup] %s ERROR: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; exit 1; }
 
+# 推送可能因网络抖动（如链路偶发 RST）失败，退避重试几次再放弃
+push_with_retry() {
+  local branch="$1" i delay=5
+  for ((i = 1; i <= PUSH_RETRIES; i++)); do
+    if git -C "$GIT_DIR" push "$GIT_REMOTE" "$branch"; then
+      return 0
+    fi
+    if [ "$i" -lt "$PUSH_RETRIES" ]; then
+      log "第 $i/$PUSH_RETRIES 次推送失败，${delay}s 后退避重试"
+      sleep "$delay"
+      delay=$((delay * 2))
+    fi
+  done
+  return 1
+}
+
 [ -f "$DB_PATH" ] || die "源数据库不存在：$DB_PATH"
 [[ "$KEEP" =~ ^[0-9]+$ ]] && [ "$KEEP" -ge 1 ] || die "BACKUP_KEEP 必须是 >=1 的整数，当前为：$KEEP"
+[[ "$PUSH_RETRIES" =~ ^[0-9]+$ ]] && [ "$PUSH_RETRIES" -ge 1 ] || die "BACKUP_PUSH_RETRIES 必须是 >=1 的整数"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -109,10 +127,12 @@ if [ -n "$GIT_DIR" ] && command -v git >/dev/null 2>&1; then
 
   if git -C "$GIT_DIR" remote get-url "$GIT_REMOTE" >/dev/null 2>&1; then
     branch="$(git -C "$GIT_DIR" rev-parse --abbrev-ref HEAD)"
-    if git -C "$GIT_DIR" push "$GIT_REMOTE" "$branch"; then
-      log "已推送到 $GIT_REMOTE/$branch"
+    remote_url="$(git -C "$GIT_DIR" remote get-url "$GIT_REMOTE")"
+    if push_with_retry "$branch"; then
+      log "已推送到 $GIT_REMOTE/$branch（$remote_url）"
     else
-      log "推送失败（保留本地提交，下次 timer 会重试）；请检查 $GIT_DIR 的远端与凭证"
+      log "重试 $PUSH_RETRIES 次仍失败；本地提交已保留，下次 timer 会连同新备份一起重试"
+      log "远端地址：$remote_url —— 请确认仓库存在且凭证有效（$GIT_DIR）"
     fi
   else
     log "git 仓库未配置远端 $GIT_REMOTE，仅本地提交。配置：git -C '$GIT_DIR' remote add $GIT_REMOTE <url>"
