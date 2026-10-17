@@ -693,6 +693,111 @@ export async function stockOut(
   return (await getComponent(pn))!
 }
 
+export interface StockOutBatchItem {
+  partNumber: string
+  quantity: number
+  /** 本次出库涉及的位号（如 R1、R2），写入流水备注 */
+  designators?: string[]
+}
+
+export interface StockOutBatchResult {
+  partNumber: string
+  requested: number
+  deducted: number
+  beforeQty: number
+  afterQty: number
+  designators: string[]
+}
+
+/**
+ * 批量出库（一次焊接按 BOM 扣减）：同一元件合并成一笔流水。
+ *
+ * 校验阶段发现任何问题都不落库（整批拒绝）；`allowOversell` 为真时库存不足的元件扣至 0
+ * （库存已为 0 则该元件跳过、不写流水）。
+ */
+export async function stockOutBatch(
+  items: StockOutBatchItem[],
+  options: { note?: string; operator?: string; allowOversell?: boolean } = {},
+): Promise<StockOutBatchResult[]> {
+  const normalized = items.map((item) => ({
+    partNumber: normalizePartNumber(String(item.partNumber ?? '')),
+    quantity: Math.trunc(Number(item.quantity)),
+    designators: (item.designators ?? []).map((value) => String(value).trim()).filter(Boolean),
+  }))
+  if (normalized.length === 0) throw new Error('没有需要出库的元件')
+  const invalid = normalized.find(
+    (item) => !item.partNumber || !Number.isFinite(item.quantity) || item.quantity < 1,
+  )
+  if (invalid) throw new Error(`出库参数无效：${invalid.partNumber || '(空编号)'} 数量 ${invalid.quantity}`)
+
+  const allowOversell = options.allowOversell === true
+  const client = getDb()
+  const now = new Date().toISOString()
+  const errors: string[] = []
+  const plans: StockOutBatchResult[] = []
+  const seen = new Set<string>()
+
+  for (const item of normalized) {
+    if (seen.has(item.partNumber)) throw new Error(`同一元件重复提交：${item.partNumber}`)
+    seen.add(item.partNumber)
+
+    const existing = await getComponent(item.partNumber)
+    if (!existing) {
+      errors.push(`${item.partNumber} 不在库存中`)
+      continue
+    }
+    if (existing.status === 'deleted') {
+      errors.push(`${item.partNumber} 已删除，请重新入库`)
+      continue
+    }
+    const deducted = allowOversell ? Math.min(item.quantity, existing.stockQuantity) : item.quantity
+    if (deducted < 1) continue // 允许超扣且库存为 0：跳过，不写流水
+    if (!allowOversell && existing.stockQuantity < item.quantity) {
+      errors.push(`${item.partNumber} 库存不足（当前 ${existing.stockQuantity}，需要 ${item.quantity}）`)
+      continue
+    }
+    plans.push({
+      partNumber: item.partNumber,
+      requested: item.quantity,
+      deducted,
+      beforeQty: existing.stockQuantity,
+      afterQty: existing.stockQuantity - deducted,
+      designators: item.designators,
+    })
+  }
+
+  if (errors.length > 0) {
+    const shown = errors.slice(0, 5).join('；')
+    const more = errors.length > 5 ? ` 等 ${errors.length} 项` : ''
+    throw new Error(`${errors.length} 项无法出库：${shown}${more}。可勾选「库存不足时扣至 0」后重试`)
+  }
+  if (plans.length === 0) throw new Error('没有可出库的元件（勾选元件的库存均为 0）')
+
+  const baseNote = options.note?.trim() || 'BOM 焊接出库'
+  const stmts: Parameters<Client['batch']>[0] = []
+  for (const plan of plans) {
+    const shown = plan.designators.slice(0, 30).join(',')
+    const suffix = plan.designators.length > 30 ? ` 等 ${plan.designators.length} 个` : ''
+    const note = plan.designators.length > 0 ? `${baseNote} · 位号 ${shown}${suffix}` : baseNote
+    stmts.push({
+      sql: 'UPDATE components SET stock_quantity = ?, updated_at = ? WHERE part_number = ?',
+      args: [plan.afterQty, now, plan.partNumber],
+    })
+    stmts.push({
+      sql: `INSERT INTO transactions (part_number, type, quantity, before_qty, after_qty, note, operator)
+            VALUES (?, 'out', ?, ?, ?, ?, ?)`,
+      args: [
+        plan.partNumber, plan.deducted, plan.beforeQty, plan.afterQty,
+        note, options.operator ?? null,
+      ],
+    })
+  }
+
+  await client.batch(stmts, 'write')
+  await invalidateCache()
+  return plans
+}
+
 /**
  * 盘点：把库存修正为实点数，差额写入流水（正=盘盈，负=盘亏）。
  */

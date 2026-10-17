@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Button, Card, Input, Label } from './ui'
+import { useMemo, useRef, useState } from 'react'
+import { Button, Card, cn, Input, Label } from './ui'
 
 interface ImportRow {
   partNumber?: string
@@ -31,6 +31,25 @@ interface BomCheckItem extends BomRow {
   stockQuantity: number
   status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
   message: string
+}
+
+/** 一次批量出库的单行结果 */
+interface BomConsumeResult {
+  partNumber: string
+  requested: number
+  deducted: number
+  beforeQty: number
+  afterQty: number
+  designators: string[]
+}
+
+/** 勾选行按元件合并后的出库计划 */
+interface BomSelectionEntry {
+  partNumber: string
+  name: string | null
+  quantity: number
+  stockQuantity: number
+  designators: string[]
 }
 
 /** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
@@ -125,6 +144,12 @@ export function ImportClient() {
   const [bomRows, setBomRows] = useState<BomRow[]>([])
   const [bomResult, setBomResult] = useState<BomCheckItem[] | null>(null)
   const [bomLoading, setBomLoading] = useState(false)
+  // BOM 勾选出库：按行下标记录选择，提交时按元件合并数量
+  const [bomSelected, setBomSelected] = useState<Set<number>>(new Set())
+  const [bomNote, setBomNote] = useState('')
+  const [bomOversell, setBomOversell] = useState(false)
+  const [bomConsuming, setBomConsuming] = useState(false)
+  const [bomConsumed, setBomConsumed] = useState<BomConsumeResult[] | null>(null)
   // 流水导出时间范围：默认最近一个月（与流水页默认一致）
   const [exportFrom, setExportFrom] = useState(() => {
     const d = new Date()
@@ -200,6 +225,8 @@ export function ImportClient() {
   function onBomFile(file: File) {
     setBomFileName(file.name)
     setBomResult(null)
+    setBomSelected(new Set())
+    setBomConsumed(null)
     const reader = new FileReader()
     reader.onload = () => setBomRows(parseBomCsv(String(reader.result ?? '')))
     reader.readAsText(file, 'utf-8')
@@ -213,6 +240,76 @@ export function ImportClient() {
       if (!res.ok) throw new Error(data.error || '核对失败')
       setBomResult(data.items)
     } catch (e) { setError(e instanceof Error ? e.message : 'BOM 核对失败') } finally { setBomLoading(false) }
+  }
+
+  // 勾选行按元件合并：同一元件多行的需求相加、位号汇总，提交时每个元件只写一条流水
+  const bomSelection = useMemo<BomSelectionEntry[]>(() => {
+    const map = new Map<string, BomSelectionEntry>()
+    bomResult?.forEach((item, index) => {
+      if (!item.matchedPartNumber || !bomSelected.has(index)) return
+      const entry = map.get(item.matchedPartNumber) ?? {
+        partNumber: item.matchedPartNumber,
+        name: item.matchedName,
+        quantity: 0,
+        stockQuantity: item.stockQuantity,
+        designators: [],
+      }
+      entry.quantity += item.quantity
+      if (item.designator) entry.designators.push(item.designator)
+      map.set(item.matchedPartNumber, entry)
+    })
+    return [...map.values()]
+  }, [bomResult, bomSelected])
+
+  const bomSelectable = useMemo(
+    () => (bomResult ?? []).flatMap((item, index) => (item.matchedPartNumber ? [index] : [])),
+    [bomResult],
+  )
+  const bomShortage = bomSelection.filter((entry) => entry.stockQuantity < entry.quantity)
+  const bomTotalQty = bomSelection.reduce((sum, entry) => sum + entry.quantity, 0)
+
+  function toggleBomRow(index: number) {
+    setBomSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  function toggleBomAll() {
+    const allSelected =
+      bomSelectable.length > 0 && bomSelectable.every((index) => bomSelected.has(index))
+    setBomSelected(allSelected ? new Set() : new Set(bomSelectable))
+  }
+
+  async function consumeBom() {
+    setBomConsuming(true)
+    setError('')
+    try {
+      const res = await fetch('/api/bom/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: bomSelection.map((entry) => ({
+            partNumber: entry.partNumber,
+            quantity: entry.quantity,
+            designators: entry.designators,
+          })),
+          note: bomNote,
+          allowOversell: bomOversell,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '出库失败')
+      setBomConsumed(data.results as BomConsumeResult[])
+      setBomSelected(new Set())
+      await checkBomFile() // 库存已变化，重新核对刷新表格
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '出库失败')
+    } finally {
+      setBomConsuming(false)
+    }
   }
 
   const okCount = preview?.filter((p) => p.status === 'ok').length ?? 0
@@ -319,16 +416,120 @@ export function ImportClient() {
         </div>
         <p className="hint_text mt-2 text-xs text-neutral-400">支持 Designator、Name、Footprint、Quantity 列；会按名称/型号、封装和规格匹配现有库存。</p>
         {bomResult && (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-neutral-200 text-left text-neutral-500"><th className="px-2 py-2">位号</th><th className="px-2 py-2">BOM 名称</th><th className="px-2 py-2">匹配元件</th><th className="px-2 py-2 text-right">需求</th><th className="px-2 py-2 text-right">库存</th><th className="px-2 py-2">结果</th></tr></thead>
-              <tbody>{bomResult.map((item, index) => <tr key={`${item.designator}-${index}`} className="border-b border-neutral-100">
-                <td className="px-2 py-1.5 font-mono">{item.designator || '-'}</td><td className="px-2 py-1.5">{item.name || '-'}</td>
-                <td className="px-2 py-1.5">{item.matchedPartNumber ? `${item.matchedPartNumber}${item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}` : '-'}</td>
-                <td className="px-2 py-1.5 text-right">{item.quantity || '-'}</td><td className="px-2 py-1.5 text-right">{item.stockQuantity}</td>
-                <td className={`px-2 py-1.5 ${item.status === 'sufficient' ? 'text-green-600' : item.status === 'insufficient' ? 'text-amber-600' : 'text-red-600'}`}>{item.message}</td>
-              </tr>)}</tbody>
-            </table>
+          <div className="mt-3 space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-neutral-200 text-left text-neutral-500">
+                    <th className="w-8 px-2 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label="全选可出库行"
+                        disabled={bomSelectable.length === 0}
+                        checked={bomSelectable.length > 0 && bomSelectable.every((i) => bomSelected.has(i))}
+                        onChange={toggleBomAll}
+                      />
+                    </th>
+                    <th className="px-2 py-2">位号</th>
+                    <th className="px-2 py-2">BOM 名称</th>
+                    <th className="px-2 py-2">匹配元件</th>
+                    <th className="px-2 py-2 text-right">需求</th>
+                    <th className="px-2 py-2 text-right">库存</th>
+                    <th className="px-2 py-2">结果</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bomResult.map((item, index) => (
+                    <tr
+                      key={`${item.designator}-${index}`}
+                      className={cn(
+                        'border-b border-neutral-100',
+                        bomSelected.has(index) && 'bg-blue-50/60',
+                        !item.matchedPartNumber && 'opacity-60',
+                      )}
+                    >
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="checkbox"
+                          aria-label={`选择 ${item.designator || item.name || index}`}
+                          disabled={!item.matchedPartNumber}
+                          checked={bomSelected.has(index)}
+                          onChange={() => toggleBomRow(index)}
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 font-mono">{item.designator || '-'}</td>
+                      <td className="px-2 py-1.5">{item.name || '-'}</td>
+                      <td className="px-2 py-1.5">{item.matchedPartNumber ? `${item.matchedPartNumber}${item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}` : '-'}</td>
+                      <td className="px-2 py-1.5 text-right">{item.quantity || '-'}</td>
+                      <td className="px-2 py-1.5 text-right">{item.stockQuantity}</td>
+                      <td className={cn('px-2 py-1.5', item.status === 'sufficient' ? 'text-green-600' : item.status === 'insufficient' ? 'text-amber-600' : 'text-red-600')}>{item.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3 border-t border-neutral-100 pt-3">
+              <div className="min-w-[14rem] flex-1">
+                <Label>出库备注（可选）</Label>
+                <Input
+                  value={bomNote}
+                  onChange={(e) => setBomNote(e.target.value)}
+                  placeholder="如：焊接主控板 v2 · 2 块"
+                />
+              </div>
+              <label className="flex items-center gap-2 pb-2 text-xs text-neutral-600">
+                <input type="checkbox" checked={bomOversell} onChange={(e) => setBomOversell(e.target.checked)} />
+                库存不足时扣至 0
+              </label>
+              <Button
+                variant="danger"
+                onClick={consumeBom}
+                disabled={bomSelection.length === 0 || bomConsuming || bomLoading}
+              >
+                {bomConsuming ? '出库处理中…' : `按 BOM 出库（${bomSelection.length} 项 / 共 ${bomTotalQty} 件）`}
+              </Button>
+            </div>
+
+            {bomSelection.length > 0 && (
+              <div className="text-xs text-neutral-500">
+                <p>已选 {bomSelection.length} 个元件、合计 {bomTotalQty} 件；同一元件多行的需求会合并成一笔出库。</p>
+                <ul className="mt-1 space-y-0.5">
+                  {bomSelection.map((entry) => (
+                    <li key={entry.partNumber} className={entry.stockQuantity < entry.quantity ? 'text-amber-600' : ''}>
+                      {entry.partNumber}
+                      {entry.name ? ` · ${entry.name}` : ''}：需求 {entry.quantity} / 库存 {entry.stockQuantity}
+                      {entry.designators.length > 0 && (
+                        ` · 位号 ${entry.designators.slice(0, 12).join(',')}${entry.designators.length > 12 ? ` 等 ${entry.designators.length} 个` : ''}`
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {bomShortage.length > 0 && !bomOversell && (
+                  <p className="mt-1 text-amber-600">
+                    {bomShortage.length} 项库存不足，直接出库会被整批拒绝；可勾选「库存不足时扣至 0」。
+                  </p>
+                )}
+              </div>
+            )}
+
+            {bomConsumed && (
+              <div className="rounded-lg bg-neutral-50 p-3 text-xs">
+                <p className="font-medium text-neutral-700">
+                  已出库 {bomConsumed.length} 项，共扣减 {bomConsumed.reduce((sum, r) => sum + r.deducted, 0)} 件
+                </p>
+                <ul className="mt-1 space-y-0.5 text-neutral-600">
+                  {bomConsumed.map((r) => (
+                    <li key={r.partNumber}>
+                      {r.partNumber}：{r.beforeQty} → {r.afterQty}
+                      {r.deducted < r.requested && (
+                        <span className="text-amber-600">（需求 {r.requested}，库存不足实扣 {r.deducted}）</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </Card>

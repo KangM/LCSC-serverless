@@ -9,7 +9,10 @@
     "lint": "eslint",
     "db:init": "node scripts/init-db.mjs",
     "db:backup": "bash scripts/backup-db.sh",
-    "db:migrate:turso": "node scripts/migrate-turso-to-sqlite.mjs"
+    "db:migrate:turso": "node scripts/migrate-turso-to-sqlite.mjs",
+    "verify:dao": "node --conditions=react-server scripts/verify-dao.mjs",
+    "verify:bom-consume": "node --conditions=react-server scripts/verify-bom-consume.mjs",
+    "smoke:bom-consume": "node scripts/smoke-bom-consume.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

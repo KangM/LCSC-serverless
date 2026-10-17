@@ -17,6 +17,7 @@
 | 出库/盘点 | 出库校验库存不足，盘点按实点数自动算差额；全部原子写流水 |
 | 流水记录 | 按元件/类型/时间筛选、分页、CSV 导出（当前筛选） |
 | 导入导出 | CSV 批量导入（缺失信息自动查立创补全、逐行失败汇总）、元件/流水 CSV 导出 |
+| BOM 核对 | 上传 BOM CSV 匹配库存；勾选需要的行后可**按 BOM 数量一次性出库**（同元件多行合并成一笔流水） |
 | 统计报表 | 库存价值按分类/封装分布、近 30 天出入库趋势、热门出库 TOP10（Recharts） |
 | 设置 | OCR 服务配置（OpenAI 兼容视觉接口 / RapidOCR 自托管） |
 
@@ -38,6 +39,25 @@ npm run dev          # http://localhost:3000（登录密码默认 test123 需自
 node --conditions=react-server scripts/verify-dao.mjs   # DAO 冒烟
 node --conditions=react-server scripts/verify-lcsc.mjs  # 真实抓取立创
 ```
+
+批量出库（BOM 扣减）的冒烟验证需要一个空白测试库：
+
+```bash
+DATABASE_MODE=sqlite SQLITE_DATABASE_PATH=./data/verify-bom.db node scripts/init-db.mjs
+DATABASE_MODE=sqlite SQLITE_DATABASE_PATH=./data/verify-bom.db \
+  node --conditions=react-server scripts/verify-bom-consume.mjs
+```
+
+`scripts/smoke-bom-consume.mjs` 则打真实 HTTP（需先 `npm run build && npm run start`，
+会自己签一个会话 token 绕开登录）：
+
+```bash
+SESSION_SECRET=<与启动服务一致> PORT=3000 node scripts/smoke-bom-consume.mjs
+```
+
+> 本地构建提示：Next 清理 `.next/turbopack` 时可能触发批量删除保护而失败，
+> 可在构建命令前加 `CODEBUDDY_SAFE_DELETE_ENABLED=0`（仅作用于该进程）。
+> 另外构建会预渲染首页，需要指向一个**已初始化**的 SQLite 库，否则报 `no such table: components`。
 
 ## Docker 部署（推荐）
 
