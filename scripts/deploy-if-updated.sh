@@ -50,6 +50,8 @@ if ! "$DOCKER_BIN" info >/dev/null 2>&1; then
 fi
 
 echo "[$(date --iso-8601=seconds)] building ${GIT_COMMIT_SHA:0:12}"
-"$DOCKER_BIN" build --network=host -t lcsc-inventory-app:latest .
+# NPM_REGISTRY 可选：在 service 里加 Environment=NPM_REGISTRY=https://registry.npmjs.org 即可换源
+"$DOCKER_BIN" build --network=host -t lcsc-inventory-app:latest \
+  ${NPM_REGISTRY:+--build-arg NPM_REGISTRY="$NPM_REGISTRY"} .
 "$DOCKER_BIN" compose up -d --no-build
 echo "[$(date --iso-8601=seconds)] deployment complete"

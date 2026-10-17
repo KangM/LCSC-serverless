@@ -1,11 +1,21 @@
+# syntax=docker/dockerfile:1
+
 FROM node:24-bookworm-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# npm 源可在构建时覆盖：docker build --build-arg NPM_REGISTRY=https://registry.npmjs.org
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 FROM base AS deps
 COPY package.json package-lock.json ./
-ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
-RUN npm ci
+ARG NPM_REGISTRY
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY \
+    NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_TIMEOUT=600000
+# 缓存挂载：宿主机保留 npm 缓存，后续构建不必重新下载全部依赖
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS builder
 COPY . .

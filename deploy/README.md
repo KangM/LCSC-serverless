@@ -142,13 +142,59 @@ git checkout -- .               # 还原已跟踪文件（想要保留的话先 
 
 > 服务器是部署目标，代码改动一律走「本地提交 → push → 自动拉取」，不要在服务器上直接改。
 
-### 排错：`journalctl -u lcsc-inventory-update.service` 显示 `-- No entries --`
+### 排错：`npm error Idle timeout reached for host cdn.npmmirror.com:443`
 
-说明 service 从未触发过，通常是 timer 没有 enable：
+容器内访问 npm 源超时 / DNS 被污染（常见于 `registry.npmmirror.com` 被解析到 `198.18.x.x`
+这类保留地址，`ping` 会看到来自网关的 `Destination Port Unreachable`）。先确认哪个源能用：
+
+```bash
+cat /etc/resolv.conf
+getent hosts registry.npmmirror.com; getent hosts registry.npmjs.org
+for h in registry.npmmirror.com registry.npmjs.org; do
+  printf '%-24s ' "$h"
+  curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' --max-time 15 "https://$h/next" || echo FAIL
+done
+```
+
+哪个返回 200 就用哪个。Dockerfile 的源可通过 `--build-arg NPM_REGISTRY=...` 覆盖，
+部署脚本会读取环境变量透传，所以在 systemd service 里加一行最稳（纯服务器侧配置，不进仓库）：
+
+```ini
+[Service]
+Environment=NPM_REGISTRY=https://registry.npmjs.org
+```
+
+```bash
+sudo systemctl daemon-reload
+```
+
+手动构建时：`NPM_REGISTRY=https://registry.npmjs.org docker build --network=host -t lcsc-inventory-app:latest .`
+
+若 DNS 整体有问题（所有域名都解析到异常 IP），换公共 DNS 后再试（见上文「透明代理」一节的
+`nameservers: addresses: [223.5.5.5, 119.29.29.29]`）。
+
+> Dockerfile 的 `deps` 阶段用了 `--mount=type=cache,target=/root/.npm`，宿主机 npm 缓存会在多次
+> 构建间复用，依赖没变时不必重新下载。需要彻底重来就 `docker builder prune`。
+
+### 排错：`journalctl` 显示 `-- No entries --`
+
+说明 service 从未触发过，通常是 timer 没有 enable：`No entries` ≠ 部署正常，之前的更新可能都是手动跑的。
 
 ```bash
 systemctl list-timers lcsc-inventory-update.timer   # 看不到或 NEXT 为空 → 未启用
 sudo systemctl enable --now lcsc-inventory-update.timer
+```
+
+### 排错：`already up to date` 但代码没更新
+
+本地与 `origin/master` 的 SHA 相同，脚本会直接跳过——通常是因为刚刚手动 `git pull` 过。
+此时想立刻验证构建链路，手动跑一次即可：
+
+```bash
+cd ~/lcsc-inventory
+docker build --network=host -t lcsc-inventory-app:latest .
+GIT_COMMIT_SHA=$(git rev-parse HEAD) GIT_COMMIT_MESSAGE=$(git log -1 --pretty=%s) \
+  docker compose up -d --no-build
 ```
 
 ## 数据库定时备份
