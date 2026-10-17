@@ -116,6 +116,27 @@ sudo journalctl -u lcsc-inventory-update.service -n 100 --no-pager
 
 脚本使用 `flock` 防止上一次构建尚未结束时再次启动；部署失败会保留旧容器，不会继续执行重启步骤。
 
+### 前置条件：服务运行用户必须能无密码执行 docker
+
+脚本里的 docker 命令**不带 sudo**（systemd 以 `User=u` 无人值守运行，没有 TTY 输密码，
+`sudo docker` 会以 `sudo: a terminal is required to read the password` 失败）。安装前先执行：
+
+```bash
+sudo usermod -aG docker u
+sudo systemctl restart lcsc-inventory-update.timer   # 让后续 service 启动时带上新组
+```
+
+验证（以服务运行用户身份）：`docker info` 能正常输出即可。
+
+### 排错：`journalctl -u lcsc-inventory-update.service` 显示 `-- No entries --`
+
+说明 service 从未触发过，通常是 timer 没有 enable：
+
+```bash
+systemctl list-timers lcsc-inventory-update.timer   # 看不到或 NEXT 为空 → 未启用
+sudo systemctl enable --now lcsc-inventory-update.timer
+```
+
 ## 数据库定时备份
 
 另一个 `systemd timer` 每天 03:30（服务器本地时区，避开 02:30 的立创刷新任务）备份 SQLite：

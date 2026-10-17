@@ -28,7 +28,19 @@ git pull --ff-only "$REMOTE" "$BRANCH"
 export GIT_COMMIT_SHA="$(git rev-parse HEAD)"
 export GIT_COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
 
+# 注意：这里必须用「无 sudo 的 docker」。systemd 以 User=u 无人值守运行，
+# 没有 TTY 也输不了密码，`sudo docker` 会直接失败：
+#   sudo: a terminal is required to read the password
+# 前置条件：把服务运行用户加入 docker 组（sudo usermod -aG docker <用户>）。
+DOCKER_BIN="${DEPLOY_DOCKER_BIN:-docker}"
+if ! "$DOCKER_BIN" info >/dev/null 2>&1; then
+  echo "[$(date --iso-8601=seconds)] ERROR: $(id -un) 无法执行 '${DOCKER_BIN} info'。" >&2
+  echo "  处理：sudo usermod -aG docker $(id -un)" >&2
+  echo "  或用 root 运行服务：修改 service 的 User=（不推荐，会产生 root 属主的仓库文件）" >&2
+  exit 1
+fi
+
 echo "[$(date --iso-8601=seconds)] building ${GIT_COMMIT_SHA:0:12}"
-sudo docker build --network=host -t lcsc-inventory-app:latest .
-sudo --preserve-env=GIT_COMMIT_SHA,GIT_COMMIT_MESSAGE docker compose up -d --no-build
+"$DOCKER_BIN" build --network=host -t lcsc-inventory-app:latest .
+"$DOCKER_BIN" compose up -d --no-build
 echo "[$(date --iso-8601=seconds)] deployment complete"
