@@ -128,6 +128,20 @@ sudo systemctl restart lcsc-inventory-update.timer   # 让后续 service 启动�
 
 验证（以服务运行用户身份）：`docker info` 能正常输出即可。
 
+### 排错：`error: Your local changes ... would be overwritten by merge`
+
+服务器上有人直接改了版本库内的文件，`pull --ff-only` 会被拒绝，5 分钟重试只会反复失败。
+当前版本的脚本会**自动丢弃已跟踪文件的本地修改**后再拉取（未跟踪的 `data/` 等不受影响），
+所以这条通常不会再出现。若还碰到，手动执行：
+
+```bash
+cd ~/lcsc-inventory
+git diff --stat                 # 先看改了什么，确认可以丢弃
+git checkout -- .               # 还原已跟踪文件（想要保留的话先 git stash）
+```
+
+> 服务器是部署目标，代码改动一律走「本地提交 → push → 自动拉取」，不要在服务器上直接改。
+
 ### 排错：`journalctl -u lcsc-inventory-update.service` 显示 `-- No entries --`
 
 说明 service 从未触发过，通常是 timer 没有 enable：

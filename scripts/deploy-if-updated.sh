@@ -24,6 +24,15 @@ if [[ "$LOCAL_SHA" == "$REMOTE_SHA" ]]; then
   exit 0
 fi
 
+# 服务器是部署目标，所有权归 upstream：工作区对「已跟踪文件」的任何本地修改一律丢弃，
+# 否则 pull 会被 "local changes would be overwritten by merge" 拒掉，5 分钟重试也只会反复失败。
+# 只会还原被版本管理的文件，data/ 等忽略/未跟踪的文件不受影响。
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "[$(date --iso-8601=seconds)] discarding local changes to tracked files"
+  git reset --quiet
+  git checkout -- .
+fi
+
 git pull --ff-only "$REMOTE" "$BRANCH"
 export GIT_COMMIT_SHA="$(git rev-parse HEAD)"
 export GIT_COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
