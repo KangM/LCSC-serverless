@@ -207,24 +207,83 @@ GIT_COMMIT_SHA=$(git rev-parse HEAD) GIT_COMMIT_MESSAGE=$(git log -1 --pretty=%s
 
 ### 1. 准备备份 git 仓库（异地留存）
 
-在宿主机建一个**私有**仓库（数据库 `settings` 表含 OCR API Key 明文），例如 Gitee / GitHub 私有仓库 /
-自建 Git：
+#### 1.1 在远端建一个**私有**空仓库
+
+数据库 `settings` 表含 OCR API Key 明文，**必须私有**。创建时**不要勾选初始化 README / .gitignore**，
+否则首次 push 会因历史不相关而冲突。
+
+记下它的默认分支名：GitHub 新建仓库是 `main`，Gitee 是 `master`。本地分支名要和它一致
+（脚本 push 的是 `git rev-parse --abbrev-ref HEAD`，即当前分支）。
+
+#### 1.2 服务器上建本地备份仓库
 
 ```bash
 mkdir -p ~/lcsc-inventory-backups
 cd ~/lcsc-inventory-backups
-git init -b master
-git remote add origin git@your-git-server:you/lcsc-inventory-backups.git
+git init -b main                       # 分支名与远端默认分支一致
+git remote add origin git@github.com:KangM/lcsc-backup.git
 ```
 
-> 命名易混：**目录**是复数 `~/lcsc-inventory-backups`，**systemd 单元名**是单数
+> **命名易混**：**目录**是复数 `~/lcsc-inventory-backups`，**systemd 单元名**是单数
 > `lcsc-inventory-backup.service`。别照着单元名建出 `~/lcsc-inventory-backup` 目录，否则会出现
 > 两个文件夹、备份跑在错误的那个里。
-> 若 `git remote add` 报 `remote origin already exists`，改用
-> `git remote set-url origin <url>`（仓库已存在时不要重复 add）。
+> 若报 `remote origin already exists`，改用 `git remote set-url origin <url>`。
 
-推送免密：把 systemd 里 `User=` 那个用户的 SSH 公钥加到远端（`ssh -T git@your-git-server` 验证一次，
-首次连接需 `ssh-keyscan your-git-server >> ~/.ssh/known_hosts`，否则定时器会因 host key 校验失败）。
+#### 1.3 打通推送（SSH 或 HTTPS，二选一）
+
+**SSH（推荐）**——注意私钥**不能有 passphrase**，否则凌晨 3:30 无人值守时没人能输密码：
+
+```bash
+[ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
+cat ~/.ssh/id_ed25519.pub     # 整行加到 GitHub → Settings → SSH keys（或仓库的 Deploy keys）
+```
+
+若 22 端口被干扰（`Connection closed by ... port 22`），改用 GitHub 的 443 入口：
+
+```bash
+cat >> ~/.ssh/config <<'EOF'
+
+Host github.com
+    Hostname ssh.github.com
+    Port 443
+    User git
+EOF
+chmod 600 ~/.ssh/config
+ssh-keyscan -p 443 ssh.github.com >> ~/.ssh/known_hosts   # 关键：否则定时任务卡在 host key 校验
+ssh -T git@github.com          # 应看到 Hi <用户名>! You've successfully authenticated
+```
+
+**HTTPS + PAT**（SSH 怎么都不通时用）：
+
+```bash
+git remote set-url origin https://github.com/KangM/lcsc-backup.git
+git config --global credential.helper store
+git push -u origin main        # 用户名填 GitHub 用户名，密码填 Personal Access Token（勾 repo）
+```
+
+#### 1.4 对齐 service 里的分支名并验证
+
+```bash
+sudo sed -i 's|^Environment=BACKUP_GIT_BRANCH=.*|Environment=BACKUP_GIT_BRANCH=main|' \
+  /etc/systemd/system/lcsc-inventory-backup.service
+sudo systemctl daemon-reload
+sudo systemctl start lcsc-inventory-backup.service
+sudo journalctl -u lcsc-inventory-backup.service -n 20 --no-pager
+```
+
+看到「已推送到 origin/main」即完成。远端网页上能看到 `inventory-YYYYMMDD-HHMMSS.db.gz`；
+应用里「设置 → 数据库备份」也会显示推送状态。
+
+#### 1.5 换远端 / 换账号
+
+```bash
+cd ~/lcsc-inventory-backups
+git remote set-url origin git@gitee.com:<你>/lcsc-inventory-backups.git
+git branch -M master          # 若新远端默认分支是 master
+git push -u origin master
+```
+
+本地仓库里的备份文件保留着（git 历史也完整），只是之后的提交会推到新地址。
 
 ### 2. 安装定时器
 

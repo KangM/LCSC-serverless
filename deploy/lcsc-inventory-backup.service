@@ -11,5 +11,7 @@ Environment=DB_PATH=/home/u/lcsc-inventory/data/inventory.db
 Environment=BACKUP_DIR=/home/u/lcsc-inventory/data/backups
 Environment=BACKUP_KEEP=30
 Environment=BACKUP_GIT_DIR=/home/u/lcsc-inventory-backups
-Environment=BACKUP_GIT_BRANCH=master
+# 只在首次 git init 时生效；已存在的仓库按当前分支推送
+# GitHub 新建仓库默认 main，Gitee 默认 master，与远端保持一致
+Environment=BACKUP_GIT_BRANCH=main
 ExecStart=/home/u/lcsc-inventory/scripts/backup-db.sh
