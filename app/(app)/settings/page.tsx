@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Card } from '@/components/ui'
 import { SettingsForm } from '@/components/SettingsForm'
+import { BackupStatusPanel } from '@/components/BackupStatusPanel'
 import { getOcrConfig } from '@/lib/ocr'
 
 export const metadata: Metadata = { title: '设置 · 元件库存管理' }
@@ -25,6 +26,9 @@ export default async function SettingsPage() {
           }}
         />
       </Card>
+      <div className="mt-4">
+        <BackupStatusPanel />
+      </div>
     </div>
   )
 }

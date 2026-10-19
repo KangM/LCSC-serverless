@@ -248,7 +248,21 @@ sudo systemctl start lcsc-inventory-backup.service   # 立刻跑一次，不等�
 ls -lh ~/lcsc-inventory/data/backups
 ```
 
-### 4. 恢复
+### 4. 在应用里查看备份状态
+
+「设置 → 数据库备份」卡片直接显示备份情况，无需登录服务器。数据来源是备份脚本每次执行后
+写入的 `data/backups/status.json`（容器内即 `/data/backups/status.json，随 `./data` 挂载），
+包含：上次备份时间与距今时长、计划与下次预计时间、保留份数、最新快照体积、
+上次执行的耗时与结果、异地 git 推送状态（远端/分支/commit/积压未推送的提交数/失败原因）。
+
+健康判定：超过 **25 小时**没有新快照即标记「已逾期」（每天一次 + 5 分钟随机延迟 + 余量）；
+脚本上次执行失败直接标红并显示错误。
+
+> 升级到新版 `backup-db.sh` 之前，页面只会显示兜底信息（扫描目录得出的份数与最后修改时间），
+> 异地推送状态要等脚本跑过一次写出 `status.json` 后才有。
+> 备份目录可用 `BACKUP_DIR` 环境变量覆盖（默认与数据库同级的 `backups/`）。
+
+### 5. 恢复
 
 ```bash
 sudo docker compose stop app
