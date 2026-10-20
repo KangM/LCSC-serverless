@@ -549,10 +549,20 @@ export function ImportClient() {
             <a className="export_btn" href="/api/export/components">
               <Button variant="secondary" size="sm" className="rounded-none border-0">导出元件 CSV</Button>
             </a>
-            <a className="export_btn border-l border-neutral-300" href="/api/export/components?format=print">
-              <Button variant="secondary" size="sm" className="rounded-none border-0">导出打印格式</Button>
+            <a
+              className="export_btn border-l border-neutral-300"
+              href={`/api/export/components?${new URLSearchParams({
+                format: 'print',
+                ...(exportFrom ? { from: toIsoBoundary(exportFrom, false) } : {}),
+                ...(exportTo ? { to: toIsoBoundary(exportTo, true) } : {}),
+              }).toString()}`}
+            >
+              <Button variant="secondary" size="sm" className="rounded-none border-0">导出打印格式 XLSX</Button>
             </a>
           </div>
+          <p className="hint_text w-full text-xs text-neutral-400">
+            打印格式按元件的录入时间筛选（留空=全部）并按录入时间先后排序，输出 xlsx。
+          </p>
           {/* 流水导出按上方时间范围筛选（本地日期 → UTC ISO 边界） */}
           <a className="export_btn" href={`/api/export/transactions?${new URLSearchParams({
             ...(exportFrom ? { from: toIsoBoundary(exportFrom, false) } : {}),
