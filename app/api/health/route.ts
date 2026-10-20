@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 
-/** Docker 健康检查：确认 Next 进程和数据库连接均可用。 */
+/**
+ * Docker 健康检查 + 部署版本自检。
+ * 除了确认 Next 进程和数据库可用，还回报镜像里烙进去的 Git 信息，
+ * 这样不登服务器就能判断「线上跑的是哪个提交」。
+ */
 export async function GET() {
+  const commit = process.env.GIT_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null
+  const message = process.env.GIT_COMMIT_MESSAGE ?? process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null
+  const build = {
+    commit: commit ? commit.slice(0, 12) : null,
+    message: message?.trim() || null,
+  }
+  const noStore = { 'Cache-Control': 'no-store' }
+
   try {
     await getDb().execute('SELECT 1')
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, ...build }, { headers: noStore })
   } catch {
-    return NextResponse.json({ ok: false, error: '数据库不可用' }, { status: 503 })
+    return NextResponse.json({ ok: false, error: '数据库不可用', ...build }, { status: 503, headers: noStore })
   }
 }
