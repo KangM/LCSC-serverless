@@ -27,6 +27,7 @@ interface BomRow {
 interface BomCheckItem extends BomRow {
   matchedPartNumber: string | null
   matchedName: string | null
+  matchedValue: string | null
   referenceDesignator: string | null
   stockQuantity: number
   status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
@@ -47,6 +48,7 @@ interface BomConsumeResult {
 interface BomSelectionEntry {
   partNumber: string
   name: string | null
+  value: string | null
   quantity: number
   stockQuantity: number
   designators: string[]
@@ -250,6 +252,7 @@ export function ImportClient() {
       const entry = map.get(item.matchedPartNumber) ?? {
         partNumber: item.matchedPartNumber,
         name: item.matchedName,
+        value: item.matchedValue,
         quantity: 0,
         stockQuantity: item.stockQuantity,
         designators: [],
@@ -459,7 +462,19 @@ export function ImportClient() {
                       </td>
                       <td className="px-2 py-1.5 font-mono">{item.designator || '-'}</td>
                       <td className="px-2 py-1.5">{item.name || '-'}</td>
-                      <td className="px-2 py-1.5">{item.matchedPartNumber ? `${item.matchedPartNumber}${item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}` : '-'}</td>
+                      <td className="px-2 py-1.5">
+                        {item.matchedPartNumber ? (
+                          <>
+                            <div className="font-mono">
+                              {item.matchedPartNumber}
+                              {item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}
+                            </div>
+                            {item.matchedValue && (
+                              <div className="text-[11px] text-neutral-400">{item.matchedValue}</div>
+                            )}
+                          </>
+                        ) : '-'}
+                      </td>
                       <td className="px-2 py-1.5 text-right">{item.quantity || '-'}</td>
                       <td className="px-2 py-1.5 text-right">{item.stockQuantity}</td>
                       <td className={cn('px-2 py-1.5', item.status === 'sufficient' ? 'text-green-600' : item.status === 'insufficient' ? 'text-amber-600' : 'text-red-600')}>{item.message}</td>
@@ -498,6 +513,7 @@ export function ImportClient() {
                   {bomSelection.map((entry) => (
                     <li key={entry.partNumber} className={entry.stockQuantity < entry.quantity ? 'text-amber-600' : ''}>
                       {entry.partNumber}
+                      {entry.value ? ` · ${entry.value}` : ''}
                       {entry.name ? ` · ${entry.name}` : ''}：需求 {entry.quantity} / 库存 {entry.stockQuantity}
                       {entry.designators.length > 0 && (
                         ` · 位号 ${entry.designators.slice(0, 12).join(',')}${entry.designators.length > 12 ? ` 等 ${entry.designators.length} 个` : ''}`

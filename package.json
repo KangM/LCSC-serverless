@@ -12,6 +12,7 @@
     "db:migrate:turso": "node scripts/migrate-turso-to-sqlite.mjs",
     "verify:dao": "node --conditions=react-server scripts/verify-dao.mjs",
     "verify:bom-consume": "node --conditions=react-server scripts/verify-bom-consume.mjs",
+    "verify:bom-match": "node --conditions=react-server scripts/verify-bom-match.mjs",
     "smoke:bom-consume": "node scripts/smoke-bom-consume.mjs",
     "verify:backup-status": "node scripts/verify-backup-status.mjs"
   },
