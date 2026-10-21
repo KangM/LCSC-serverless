@@ -40,6 +40,7 @@ echo "== 4. 容器 =="
 docker ps --filter 'name=lcsc-inventory-app' --format '  {{.Names}} | {{.Status}} | 创建于 {{.CreatedAt}}' 2>/dev/null
 docker images lcsc-inventory-app:latest --format '  镜像构建于 {{.CreatedAt}}' 2>/dev/null
 echo "  镜像内版本：$(docker exec lcsc-inventory-app-1 printenv GIT_COMMIT_SHA 2>/dev/null | cut -c1-12)（空=构建时没传 build-arg）"
+echo "  镜像内提交时间：$(docker exec lcsc-inventory-app-1 printenv GIT_COMMIT_TIME 2>/dev/null)（空=构建时没传 GIT_COMMIT_TIME）"
 
 echo
 echo "== 5. 健康检查（含线上版本号）=="

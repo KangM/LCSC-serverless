@@ -28,6 +28,7 @@ FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 ARG GIT_COMMIT_SHA
 ARG GIT_COMMIT_MESSAGE
+ARG GIT_COMMIT_TIME
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
@@ -36,6 +37,7 @@ ENV NODE_ENV=production \
     DATABASE_MODE=sqlite \
     GIT_COMMIT_SHA=$GIT_COMMIT_SHA \
     GIT_COMMIT_MESSAGE=$GIT_COMMIT_MESSAGE \
+    GIT_COMMIT_TIME=$GIT_COMMIT_TIME \
     SQLITE_DATABASE_PATH=/data/inventory.db
 
 RUN mkdir -p /data && chown -R node:node /app /data

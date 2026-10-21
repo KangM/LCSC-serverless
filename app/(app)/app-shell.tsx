@@ -42,6 +42,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 type BuildInfo = {
   commit: string | null
   message: string | null
+  time: string | null
+  timeIso?: string | null
 }
 
 function BuildInfo({ info }: { info: BuildInfo }) {
@@ -52,6 +54,11 @@ function BuildInfo({ info }: { info: BuildInfo }) {
   return (
     <div className="px-2 text-xs leading-5 text-neutral-400" title={info.message ?? undefined}>
       <div className="font-mono">提交 {info.commit}</div>
+      {info.time && (
+        <div className="font-mono" title={info.timeIso ? `提交时间 ${info.timeIso}` : undefined}>
+          {info.time}
+        </div>
+      )}
       {info.message && <div className="truncate">{info.message}</div>}
     </div>
   )

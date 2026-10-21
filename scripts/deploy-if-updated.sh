@@ -40,6 +40,8 @@ fi
 git pull --ff-only "$REMOTE" "$BRANCH"
 export GIT_COMMIT_SHA="$(git rev-parse HEAD)"
 export GIT_COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
+# 该提交的时间（保留提交时区，形如 2026-10-22T02:24:56+08:00），界面侧边栏会显示它
+export GIT_COMMIT_TIME="$(git log -1 --pretty=%cI)"
 
 # 注意：这里必须用「无 sudo 的 docker」。systemd 以 User=u 无人值守运行，
 # 没有 TTY 也输不了密码，`sudo docker` 会直接失败：
@@ -61,6 +63,7 @@ echo "[$(date --iso-8601=seconds)] building ${GIT_COMMIT_SHA:0:12}"
 "$DOCKER_BIN" build --network=host -t lcsc-inventory-app:latest \
   --build-arg "GIT_COMMIT_SHA=$GIT_COMMIT_SHA" \
   --build-arg "GIT_COMMIT_MESSAGE=$GIT_COMMIT_MESSAGE" \
+  --build-arg "GIT_COMMIT_TIME=$GIT_COMMIT_TIME" \
   ${NPM_REGISTRY:+--build-arg NPM_REGISTRY="$NPM_REGISTRY"} .
 "$DOCKER_BIN" compose up -d --no-build
 echo "[$(date --iso-8601=seconds)] deployment complete"

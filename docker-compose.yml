@@ -5,6 +5,7 @@ services:
       args:
         GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
         GIT_COMMIT_MESSAGE: ${GIT_COMMIT_MESSAGE:-}
+        GIT_COMMIT_TIME: ${GIT_COMMIT_TIME:-}
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -25,6 +26,7 @@ services:
       args:
         GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
         GIT_COMMIT_MESSAGE: ${GIT_COMMIT_MESSAGE:-}
+        GIT_COMMIT_TIME: ${GIT_COMMIT_TIME:-}
     restart: unless-stopped
     depends_on:
       app:
