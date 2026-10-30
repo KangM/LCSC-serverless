@@ -8,9 +8,13 @@ import { StockActionModal, type StockMode } from './StockActionModal'
 import { ComponentDetailModal } from './ComponentDetailModal'
 import { ImageHoverZoom } from './ImageHoverZoom'
 import type { ComponentRow } from '@/lib/db'
+import { majorOf, type CategoryGroup } from '@/lib/categories'
 
 export interface ListState {
   q: string
+  /** 大类（立创一级目录） */
+  major: string
+  /** 小类（立创二级目录，对应 components.category） */
   category: string
   packageName: string
   status: 'active' | 'deleted' | 'all'
@@ -31,17 +35,18 @@ const SORT_OPTIONS = [
 
 export function ComponentListClient({
   initial,
-  categories,
+  groups,
   packages,
   state,
 }: {
   initial: { items: ComponentRow[]; total: number; page: number; pageSize: number; totalPages: number }
-  categories: string[]
+  groups: CategoryGroup[]
   packages: string[]
   state: ListState
 }) {
   const router = useRouter()
   const [q, setQ] = useState(state.q)
+  const [major, setMajor] = useState(state.major)
   const [category, setCategory] = useState(state.category)
   const [packageName, setPackageName] = useState(state.packageName)
   const [status, setStatus] = useState<ListState['status']>(state.status)
@@ -63,9 +68,10 @@ export function ComponentListClient({
   )
 
   function apply(partial: Partial<ListState>) {
-    const next = { q, category, packageName, status, sort, order, page: 1, ...partial }
+    const next = { q, major, category, packageName, status, sort, order, page: 1, ...partial }
     const sp = new URLSearchParams()
     if (next.q) sp.set('q', next.q)
+    if (next.major) sp.set('major', next.major)
     if (next.category) sp.set('category', next.category)
     if (next.packageName) sp.set('package', next.packageName)
     if (next.status !== 'active') sp.set('status', next.status)
@@ -75,6 +81,32 @@ export function ComponentListClient({
     const qs = sp.toString()
     router.replace(qs ? `/components?${qs}` : '/components')
   }
+
+  /** 选大类：清掉小类 */
+  function selectMajor(next: string) {
+    setMajor(next)
+    setCategory('')
+    apply({ major: next, category: '' })
+  }
+
+  /** 选小类：自动补上它所属的大类，选中后两级 chips 状态一致 */
+  function selectMinor(next: string) {
+    const nextMajor = next ? majorOf(next) : major
+    setMajor(nextMajor)
+    setCategory(next)
+    apply({ major: nextMajor, category: next })
+  }
+
+  /** 当前选中的大类（用于展开小类 chips） */
+  const activeGroup = useMemo(
+    () => groups.find((group) => group.major === major) ?? null,
+    [groups, major],
+  )
+
+  const chipClass = (active: boolean) =>
+    `rounded-full border px-2.5 py-1 text-xs transition ${
+      active ? 'border-blue-500 bg-blue-600 text-white' : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
+    }`
 
   function toggleAll() {
     setSelected(allSelected ? new Set() : new Set(selectableItems.map((r) => r.partNumber)))
@@ -119,12 +151,28 @@ export function ComponentListClient({
             placeholder="搜索编号 / MPN / 名称 / 规格"
           />
         </div>
-        <div className="w-40">
-          <Select value={category} onChange={(e) => { setCategory(e.target.value); apply({ category: e.target.value }) }}>
-            <option value="">全部分类</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
+        <div className="w-32">
+          <Select value={major} onChange={(e) => selectMajor(e.target.value)}>
+            <option value="">全部大类</option>
+            {groups.map((group) => (
+              <option key={group.major} value={group.major}>{group.major}（{group.count}）</option>
             ))}
+          </Select>
+        </div>
+        <div className="w-44">
+          <Select value={category} onChange={(e) => selectMinor(e.target.value)}>
+            <option value="">全部小类</option>
+            {activeGroup
+              ? activeGroup.minors.map((minor) => (
+                  <option key={minor.name} value={minor.name}>{minor.name}（{minor.count}）</option>
+                ))
+              : groups.map((group) => (
+                  <optgroup key={group.major} label={group.major}>
+                    {group.minors.map((minor) => (
+                      <option key={minor.name} value={minor.name}>{minor.name}（{minor.count}）</option>
+                    ))}
+                  </optgroup>
+                ))}
           </Select>
         </div>
         <div className="w-40">
@@ -159,7 +207,7 @@ export function ComponentListClient({
             <option value="asc">升序</option>
           </Select>
         </div>
-        <Button variant="secondary" onClick={() => apply({ q, category, packageName, status })}>搜索</Button>
+        <Button variant="secondary" onClick={() => apply({ q, major, category, packageName, status })}>搜索</Button>
         <div className="flex-1" />
         <Button
           onClick={() => {
@@ -171,29 +219,41 @@ export function ComponentListClient({
         </Button>
       </div>
 
-      {/* 分类快速筛选 chips */}
-      {categories.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-neutral-400">分类：</span>
-          <button
-            onClick={() => apply({ category: '' })}
-            className={`rounded-full border px-2.5 py-1 text-xs transition ${
-              !category ? 'border-blue-500 bg-blue-600 text-white' : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
-            }`}
-          >
-            全部
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => apply({ category: c })}
-              className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                category === c ? 'border-blue-500 bg-blue-600 text-white' : 'border-neutral-300 bg-white text-neutral-600 hover:border-blue-300'
-              }`}
-            >
-              {c}
-            </button>
-          ))}
+      {/* 两级分类筛选：大类 chips，选中大类后再展开该类小类 */}
+      {groups.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-8 shrink-0 text-xs text-neutral-400">大类</span>
+            <button onClick={() => selectMajor('')} className={chipClass(!major)}>全部</button>
+            {groups.map((group) => (
+              <button
+                key={group.major}
+                onClick={() => selectMajor(group.major)}
+                className={chipClass(major === group.major)}
+                title={`筛选大类：${group.major}`}
+              >
+                {group.major}
+                <span className="ml-1 opacity-60">{group.count}</span>
+              </button>
+            ))}
+          </div>
+          {activeGroup && activeGroup.minors.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-8 shrink-0 text-xs text-neutral-400">小类</span>
+              <button onClick={() => selectMinor('')} className={chipClass(!category)}>全部</button>
+              {activeGroup.minors.map((minor) => (
+                <button
+                  key={minor.name}
+                  onClick={() => selectMinor(minor.name)}
+                  className={chipClass(category === minor.name)}
+                  title={`筛选小类：${minor.name}`}
+                >
+                  {minor.name}
+                  <span className="ml-1 opacity-60">{minor.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -232,7 +292,7 @@ export function ComponentListClient({
               <th className="px-4 py-2.5 text-center">库存</th>
               <th className="px-4 py-2.5 text-center">品牌</th>
               <th className="px-4 py-2.5 text-center">封装</th>
-              <th className="px-4 py-2.5 text-center">分类</th>
+              <th className="px-4 py-2.5 text-center">分类（大类 / 小类）</th>
               <th className="px-4 py-2.5 text-right">立创价格</th>
             </tr>
           </thead>
@@ -298,17 +358,18 @@ export function ComponentListClient({
                     </td>
                     <td className="px-4 py-2 text-center text-neutral-600">{row.brand ?? '-'}</td>
                     <td className="px-4 py-2 text-center text-neutral-600">{row.packageName ?? '-'}</td>
-                    <td className="px-4 py-2 text-center text-neutral-600">
+                    <td className="px-4 py-2 text-center">
                       {row.category ? (
                         <button
-                          onClick={() => apply({ category: row.category ?? undefined })}
-                          className="text-blue-600 hover:underline"
-                          title={`筛选分类：${row.category}`}
+                          onClick={() => selectMinor(row.category ?? '')}
+                          className="leading-5 hover:underline"
+                          title={`筛选小类：${row.category}`}
                         >
-                          {row.category}
+                          <span className="block text-[11px] text-neutral-400">{majorOf(row.category)}</span>
+                          <span className="block text-blue-600">{row.category}</span>
                         </button>
                       ) : (
-                        '-'
+                        <span className="text-neutral-400">-</span>
                       )}
                     </td>
                     <td className="px-4 py-2 text-right text-neutral-600">

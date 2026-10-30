@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { listCategories, listComponents, listPackageNames } from '@/lib/cache'
+import { listCategoryCounts, listComponents, listPackageNames } from '@/lib/cache'
+import { groupCategories } from '@/lib/categories'
 import { ComponentListClient } from '@/components/ComponentListClient'
 
 export const metadata: Metadata = { title: '元件列表 · 元件库存管理' }
@@ -23,31 +24,48 @@ export default async function ComponentsPage({ searchParams }: Props) {
   const statusParam = get('status')
   const status = statusParam === 'deleted' || statusParam === 'all' ? statusParam : 'active'
 
-  const [data, categories, packages] = await Promise.all([
-    listComponents({
-      q: get('q'),
-      category: get('category'),
-      packageName: get('package'),
-      status,
-      sort: sort && ALLOWED_SORTS.has(sort) ? (sort as never) : 'updated',
-      order: order === 'asc' ? 'asc' : 'desc',
-      page,
-      pageSize: 20,
-    }),
-    listCategories(),
-    listPackageNames(),
-  ])
+  const [categoryCounts, packages] = await Promise.all([listCategoryCounts(), listPackageNames()])
+  const groups = groupCategories(categoryCounts)
+
+  // 两级筛选：major=大类（展开成该大类下所有小类），category=小类（立创二级目录原名）
+  const minorParam = get('category') ?? ''
+  const majorParam = get('major') ?? ''
+  const activeMinor = groups.some((group) => group.minors.some((minor) => minor.name === minorParam))
+    ? minorParam
+    : ''
+  const activeMajor = activeMinor
+    ? (groups.find((group) => group.minors.some((minor) => minor.name === activeMinor))?.major ?? '')
+    : groups.some((group) => group.major === majorParam)
+      ? majorParam
+      : ''
+  const categoryFilter = activeMinor
+    ? [activeMinor]
+    : activeMajor
+      ? (groups.find((group) => group.major === activeMajor)?.minors.map((minor) => minor.name) ?? [])
+      : undefined
+
+  const data = await listComponents({
+    q: get('q'),
+    categories: categoryFilter,
+    packageName: get('package'),
+    status,
+    sort: sort && ALLOWED_SORTS.has(sort) ? (sort as never) : 'updated',
+    order: order === 'asc' ? 'asc' : 'desc',
+    page,
+    pageSize: 20,
+  })
 
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold">元件列表</h1>
       <ComponentListClient
         initial={data}
-        categories={categories}
+        groups={groups}
         packages={packages}
         state={{
           q: get('q') ?? '',
-          category: get('category') ?? '',
+          major: activeMajor,
+          category: activeMinor,
           packageName: get('package') ?? '',
           status,
           sort: sort ?? 'updated',

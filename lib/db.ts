@@ -66,7 +66,8 @@ export interface Paged<T> {
 
 export interface ComponentQuery {
   q?: string
-  category?: string
+  /** 分类（立创二级目录的小类名）；按大类筛选时由调用方展开成小类列表 */
+  categories?: string[]
   packageName?: string
   status?: 'active' | 'deleted' | 'all'
   sort?: 'name' | 'brand' | 'package' | 'category' | 'stock' | 'price' | 'updated'
@@ -340,7 +341,7 @@ const SORT_COLUMNS: Record<string, string> = {
 
 /** 元件列表：关键词（编号/MPN/名称/规格）+ 分类/封装筛选 + 白名单排序 + 分页 */
 export async function listComponents(query: ComponentQuery = {}): Promise<Paged<ComponentRow>> {
-  const { q, category, packageName } = query
+  const { q, categories, packageName } = query
   const page = Math.max(1, query.page ?? 1)
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20))
   const sortCol = SORT_COLUMNS[query.sort ?? 'updated'] ?? 'updated_at'
@@ -357,9 +358,10 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
     const like = `%${q.trim()}%`
     args.push(like, like, like, like)
   }
-  if (category && category.trim()) {
-    where.push('category = ?')
-    args.push(category.trim())
+  const categoryList = (categories ?? []).map((value) => value.trim()).filter(Boolean)
+  if (categoryList.length > 0) {
+    where.push(`category IN (${categoryList.map(() => '?').join(',')})`)
+    args.push(...categoryList)
   }
   if (packageName && packageName.trim()) {
     where.push('package_name = ?')
@@ -439,12 +441,14 @@ export async function getComponentsByPartNumbers(
   }))
 }
 
-/** 元件表中出现的全部分类（筛选下拉用） */
-export async function listCategories(): Promise<string[]> {
+/** 分类（立创二级小类）+ 元件数，供元件列表做大小类筛选 */
+export async function listCategoryCounts(): Promise<Array<{ name: string; count: number }>> {
   const result = await getDb().execute({
-    sql: "SELECT DISTINCT category FROM components WHERE status = 'active' AND category IS NOT NULL AND category != '' ORDER BY category",
+    sql: `SELECT category AS name, COUNT(*) AS count FROM components
+          WHERE status = 'active' AND category IS NOT NULL AND category != ''
+          GROUP BY category ORDER BY count DESC, category ASC`,
   })
-  return result.rows.map((row) => row.category as string)
+  return result.rows.map((row) => ({ name: String(row.name), count: Number(row.count ?? 0) }))
 }
 
 /** 元件表中出现的全部封装（筛选下拉用） */

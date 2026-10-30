@@ -21,7 +21,7 @@ import {
   getComponent as rawGetComponent,
   getComponentsByPartNumbers as rawGetComponentsByPartNumbers,
   listComponents as rawListComponents,
-  listCategories as rawListCategories,
+  listCategoryCounts as rawListCategoryCounts,
   listPackageNames as rawListPackageNames,
   valueByCategory as rawValueByCategory,
   valueByPackage as rawValueByPackage,
@@ -89,11 +89,11 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
   return rawListComponents(query)
 }
 
-export async function listCategories(): Promise<string[]> {
+export async function listCategoryCounts(): Promise<Array<{ name: string; count: number }>> {
   'use cache'
   cacheLife({ revalidate: 30, expire: 60 })
   cacheTag(CACHE_TAG)
-  return rawListCategories()
+  return rawListCategoryCounts()
 }
 
 export async function listPackageNames(): Promise<string[]> {

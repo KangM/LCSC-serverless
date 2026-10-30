@@ -1,14 +1,29 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getComponent, listComponents } from '@/lib/cache'
+import { listCategoryCounts, getComponent, listComponents } from '@/lib/cache'
+import { groupCategories } from '@/lib/categories'
 import { stockIn } from '@/lib/db'
 import { lcsc, type ComponentDetail } from '@/lib/lcsc'
 
-/** GET /api/components?q=&category=&package=&status=&sort=&order=&page=&pageSize= — 元件列表 */
+/**
+ * GET /api/components?q=&major=&category=&package=&status=&sort=&order=&page=&pageSize=
+ * 分类筛选支持两级：major=大类（展开成该大类下的小类），category=小类（可逗号分隔多个）。
+ */
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
+  const categoryParam = sp.get('category')
+  const majorParam = sp.get('major')
+
+  let categories: string[] | undefined
+  if (categoryParam) {
+    categories = categoryParam.split(',').map((value) => value.trim()).filter(Boolean)
+  } else if (majorParam) {
+    const groups = groupCategories(await listCategoryCounts())
+    categories = groups.find((group) => group.major === majorParam)?.minors.map((minor) => minor.name)
+  }
+
   const data = await listComponents({
     q: sp.get('q') ?? undefined,
-    category: sp.get('category') ?? undefined,
+    categories,
     packageName: sp.get('package') ?? undefined,
     status: (sp.get('status') as 'active' | 'deleted' | 'all' | null) ?? undefined,
     sort: (sp.get('sort') as never) ?? undefined,
