@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS components (
   stock_quantity  INTEGER NOT NULL DEFAULT 0,          -- 当前库存数量
   status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted')),
   threshold       INTEGER NOT NULL DEFAULT 0,          -- 低库存预警阈值（<= threshold 报警）
+  location        TEXT,                                -- 库存位置（货架-盒-格，如 A3-2；自由文本，用于焊接备料指引）
   product_url     TEXT,                                -- 立创商品页
   datasheet_url   TEXT,                                -- 数据手册
   image_url       TEXT,                                -- 商品图

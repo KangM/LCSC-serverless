@@ -20,6 +20,31 @@
 | BOM 核对 | 上传 BOM CSV 匹配库存；勾选需要的行后可**按 BOM 数量一次性出库**（同元件多行合并成一笔流水） |
 | 统计报表 | 库存价值按分类/封装分布、近 30 天出入库趋势、热门出库 TOP10（Recharts） |
 | 设置 | OCR 服务配置（OpenAI 兼容视觉接口 / RapidOCR 自托管） |
+| 焊接备料清单 | 给立创EDA「辅助焊接」导出的 HTML 注入库存位置抽屉（见下） |
+
+## 辅助焊接备料清单（注入库存位置）
+
+立创EDA Pro 导出的「辅助焊接」页是一个 11MB 的离线单文件 SPA，插件没有接口能改它的导出内容；
+但它的 BOM 数据是明文 JSON（`window.files.bom_merge`），所以这里走**后处理注入**：
+
+```bash
+# 1. 给元件录库存位置（自由文本，建议「货架-盒-格」，如 A3-2）
+npm run db:location -- C15849 A1-3
+npm run db:location -- --import data/locations.json   # {"C15849":"A1-3"} 批量
+npm run db:location -- --list                          # 谁还没录位置
+
+# 2. 注入
+npm run bom:location -- "D:/Downloads/InteractiveBOM_xxx.html"
+#   → 同目录输出 xxx-库存位置.html（也可 -o 指定）
+```
+
+输出页右下角多一个「📍 备料清单」按钮（`Alt+L`）：按**库存位置排序**走一遍货架就能备齐，
+支持搜索、只看缺料、点行复制位号、导出 CSV、打印。注入只加约 15KB，原页的位号高亮/3D 一字节不动。
+
+- 位置来源：`components.location`（与 app 同一套数据库解析规则，Turso/本地都支持）
+- 匹配顺序：立创编号 → 厂商型号 → 值+封装（值只在没有编号/型号时兜底，避免不同料串位置）
+- `--locations x.json` 可用覆盖表先预览（库里还没录位置时），格式 `{"C15849":{"location":"A1-3","stock":40}}`
+- 结构探测：导出格式变化（找不到 `designator_info`）会直接报错，不会静默输出空清单
 
 ## 本地开发
 
