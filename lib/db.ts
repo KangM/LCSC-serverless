@@ -423,6 +423,11 @@ export interface InventorySnapshotRow {
   partNumber: string
   mpn: string
   name: string
+  description: string
+  /** 封装，宽松匹配时用来过滤「同值不同封装」的候选 */
+  packageName: string
+  /** 规格参数表，宽松匹配会拿容值/阻值/电感值做数值比较（1uF = 100nF） */
+  specifications: Record<string, string>
   stock: number
   /** 系统里录入的位号（货位），如 R1G1；空串表示没录 */
   reference: string
@@ -436,7 +441,8 @@ export interface InventorySnapshotRow {
  */
 export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
   const result = await getDb().execute(`
-    SELECT c.part_number, c.mpn, c.name, c.stock_quantity, c.status,
+    SELECT c.part_number, c.mpn, c.name, c.description, c.package_name, c.specifications,
+           c.stock_quantity, c.status,
            (SELECT t.reference_designator FROM transactions t
              WHERE t.part_number = c.part_number
                AND t.reference_designator IS NOT NULL AND trim(t.reference_designator) <> ''
@@ -446,6 +452,16 @@ export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
     partNumber: normalizePartNumber(String(row.part_number ?? '')),
     mpn: row.mpn ? String(row.mpn).trim() : '',
     name: row.name ? String(row.name) : '',
+    description: row.description ? String(row.description) : '',
+    packageName: row.package_name ? String(row.package_name) : '',
+    specifications: (() => {
+      try {
+        const parsed = JSON.parse(String(row.specifications ?? '{}'))
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {}
+      } catch {
+        return {}
+      }
+    })(),
     stock: Number(row.stock_quantity ?? 0),
     reference: row.reference_designator ? String(row.reference_designator).trim() : '',
   }))

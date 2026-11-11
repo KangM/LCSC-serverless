@@ -7,11 +7,11 @@
  */
 import { NextResponse, type NextRequest } from 'next/server'
 import {
-  PANEL_SOURCE,
+  TABLE_SOURCE,
   buildItems,
   buildPayload,
   extractWindowFiles,
-  injectPanel,
+  injectTableColumn,
   matchInventory,
   parseBom,
   pcbNameFromFileName,
@@ -49,21 +49,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '解析出 0 个贴片位号 —— 导出时可能没勾选任何元件' }, { status: 422 })
     }
 
+    // 匹配口径与站内 BOM 核对一致（lib/part-match.mjs）：编号 → 型号 → 名称/值
     const snapshot = await getInventorySnapshot()
-    const byPart = new Map<string, (typeof snapshot)[number]>()
-    const byMpn = new Map<string, (typeof snapshot)[number]>()
-    for (const row of snapshot) {
-      if (row.partNumber) byPart.set(row.partNumber.toUpperCase(), row)
-      if (row.mpn) byMpn.set(row.mpn.toUpperCase(), row)
-    }
-
-    const matched = matchInventory(items, { byPart, byMpn })
+    const matched = matchInventory(items, { components: snapshot })
     const payload = buildPayload({
       items: matched,
       pcbName: pcbNameFromFileName(file.name),
       sourceLabel: '系统',
     })
-    const output = injectPanel(html, payload, PANEL_SOURCE)
+    const output = injectTableColumn(html, payload, TABLE_SOURCE)
 
     const base = file.name.replace(/\.html?$/i, '')
     const downloadName = `${base}-库存位置.html`
@@ -74,7 +68,8 @@ export async function POST(request: NextRequest) {
         'Content-Disposition': `attachment; filename="${downloadName.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
         'X-Bom-Items': String(payload.counts.items),
         'X-Bom-Designators': String(payload.counts.designators),
-        'X-Bom-No-Reference': String(payload.counts.noLocation),
+        'X-Bom-No-Reference': String(payload.counts.noReference),
+        'X-Bom-Unmatched': String(payload.counts.unmatched),
       },
     })
   } catch (error) {

@@ -24,12 +24,12 @@ import path from 'node:path'
 import { createClient } from '@libsql/client'
 import { resolveDbTarget } from './lib/db-target.mjs'
 import {
-  PANEL_SOURCE,
+  TABLE_SOURCE,
   buildBomCsv,
   buildItems,
   buildPayload,
   extractWindowFiles,
-  injectPanel,
+  injectTableColumn,
   matchInventory,
   parseBom,
   pcbNameFromFileName,
@@ -74,33 +74,41 @@ function parseArgs(argv) {
 /**
  * 位号和 lib/db.ts 的取法保持一致：同一个料可能入库多次、每次记不同位号，
  * 取**最新一条**（ORDER BY id DESC）作为它当前的位置。
+ *
+ * 一并带出封装与规格参数：宽松匹配要靠它们区分「同值不同封装」的料
+ * （10uF 在 0603 和 0805 上是两种物料），只靠编号/型号会漏掉一半。
  */
 async function loadInventory(dbArg) {
   const target = await resolveDbTarget(dbArg)
   const client = createClient(target.config)
   try {
     const rows = await client.execute(`
-      SELECT c.part_number, c.mpn, c.name, c.stock_quantity, c.status,
+      SELECT c.part_number, c.mpn, c.name, c.description, c.package_name, c.specifications,
+             c.stock_quantity, c.status,
              (SELECT t.reference_designator FROM transactions t
                WHERE t.part_number = c.part_number
                  AND t.reference_designator IS NOT NULL AND trim(t.reference_designator) <> ''
                ORDER BY t.id DESC LIMIT 1) AS reference_designator
       FROM components c`)
-    const byPart = new Map()
-    const byMpn = new Map()
-    for (const r of rows.rows) {
-      const rec = {
-        partNumber: String(r.part_number || '').toUpperCase(),
-        mpn: r.mpn ? String(r.mpn).trim().toUpperCase() : '',
-        name: r.name ? String(r.name) : '',
-        stock: Number(r.stock_quantity ?? 0),
-        reference: r.reference_designator ? String(r.reference_designator).trim() : '',
-        status: String(r.status || 'active'),
-      }
-      if (rec.partNumber) byPart.set(rec.partNumber, rec)
-      if (rec.mpn) byMpn.set(rec.mpn, rec)
-    }
-    return { byPart, byMpn, label: target.label }
+    const components = rows.rows.map((r) => ({
+      partNumber: String(r.part_number || ''),
+      mpn: r.mpn ? String(r.mpn).trim() : '',
+      name: r.name ? String(r.name) : '',
+      description: r.description ? String(r.description) : '',
+      packageName: r.package_name ? String(r.package_name) : '',
+      specifications: (() => {
+        try {
+          const v = JSON.parse(String(r.specifications ?? '{}'))
+          return v && typeof v === 'object' ? v : {}
+        } catch {
+          return {}
+        }
+      })(),
+      stock: Number(r.stock_quantity ?? 0),
+      reference: r.reference_designator ? String(r.reference_designator).trim() : '',
+      status: String(r.status || 'active'),
+    }))
+    return { components, label: target.label }
   } finally {
     client.close()
   }
@@ -143,7 +151,7 @@ if (!items.length) throw new Error('解析出 0 个贴片位号，导出文件�
 
 const inv = await loadInventory(args.db)
 const overrides = await loadOverrides(args.locations)
-const matched = matchInventory(items, { byPart: inv.byPart, byMpn: inv.byMpn, overrides })
+const matched = matchInventory(items, { components: inv.components, overrides })
 
 const payload = buildPayload({
   items: matched,
@@ -155,7 +163,7 @@ const out = args.out
   ? path.resolve(args.out)
   : path.join(path.dirname(args.input), path.basename(args.input, path.extname(args.input)) + '-库存位置.html')
 
-await writeFile(out, injectPanel(html, payload, PANEL_SOURCE), 'utf8')
+await writeFile(out, injectTableColumn(html, payload, TABLE_SOURCE), 'utf8')
 
 let csvOut = null
 if (args.csv) {
@@ -170,24 +178,32 @@ if (args.csv) {
 // 报告
 // ---------------------------------------------------------------------------
 
-const noRef = matched.filter((it) => !it.loc)
+const noRef = matched.filter((it) => it.matched && !it.reference)
 const bad = matched.filter((it) => it.shortage)
 const unmatched = matched.filter((it) => !it.matched)
+const pkgBad = matched.filter((it) => it.reason === 'pkg')
 
 console.log(`输入: ${args.input}`)
 console.log(`输出: ${out}`)
 if (csvOut) console.log(`BOM CSV: ${csvOut}（可直接在站内 /import 页做 BOM 核对并一键出库）`)
 console.log(
   `元件: ${payload.counts.items} 种料 / ${payload.counts.designators} 个位号` +
-    ` · 未录位号 ${noRef.length} · 缺料 ${bad.length} · 库存未匹配 ${unmatched.length}` +
+    ` · 已入库未录位号 ${noRef.length} · 缺料 ${bad.length}` +
+    ` · 未入库 ${unmatched.length - pkgBad.length} · 封装不符 ${pkgBad.length}` +
     ` · 耗时 ${Date.now() - t0}ms`,
 )
 if (noRef.length) {
-  console.log('\n系统未录位号（前 10，去「元件列表 → 详情」或入库时填写）:')
+  console.log('\n已入库但没录位号（前 10，去「元件列表 → 详情」或入库时填写）:')
   for (const it of noRef.slice(0, 10)) {
     console.log(`  ${it.designators.padEnd(24)} ${(it.partNumber || it.mpn || it.value || '?').padEnd(16)} ${it.name}`)
   }
   if (noRef.length > 10) console.log(`  … 还有 ${noRef.length - 10} 种`)
+}
+if (pkgBad.length) {
+  console.log('\n封装不符（库里有同值料但封装不同，不能直接拿）:')
+  for (const it of pkgBad) {
+    console.log(`  ${it.designators.padEnd(24)} ${String(it.value).padEnd(10)} 需要 ${it.footprint} / 库里有 ${it.nearHint}`)
+  }
 }
 if (bad.length) {
   console.log('\n缺料:')
