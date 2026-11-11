@@ -116,6 +116,46 @@ sudo journalctl -u lcsc-inventory-update.service -n 100 --no-pager
 
 脚本使用 `flock` 防止上一次构建尚未结束时再次启动；部署失败会保留旧容器，不会继续执行重启步骤。
 
+### 怎么立即部署，不等下一次定时检查
+
+timer 的 `OnUnitActiveSec=5min` 只是「上一次跑完后 5 分钟再跑」，急着看效果时手动触发即可。
+service 是 `Type=oneshot`，所以 `systemctl start` 就是「立刻执行一次」，不会影响定时器后续节奏。
+
+**推荐：直接跑脚本**（不需要 sudo —— 脚本里的 docker 命令本来就是无 sudo 的，
+前提是 `u` 在 docker 组。输出直接打在你眼前，失败原因不用另翻日志）：
+
+```bash
+ssh <服务器> 'bash ~/lcsc-inventory/scripts/deploy-if-updated.sh'
+```
+
+已推送新提交时它会 `git pull` → `docker build` → `compose up`；没有新提交就打印
+`already up to date` 直接退出。
+
+**想强制重建**（提交没变、改了 compose/nginx 配置、或只是要刷新版本号）：
+
+```bash
+ssh <服务器> 'DEPLOY_FORCE=1 bash ~/lcsc-inventory/scripts/deploy-if-updated.sh'
+```
+
+**按 systemd 的方式触发**（和定时器完全一致，日志进 journal）：
+
+```bash
+sudo systemctl start --no-block lcsc-inventory-update.service
+sudo journalctl -u lcsc-inventory-update.service -f
+```
+
+`--no-block` 是必要的：oneshot 的 `start` 默认会占住终端等构建结束，用它会卡好几分钟。
+
+三个注意事项：
+
+- **别用 `systemctl restart`**：oneshot 跑完进程就退了，restart 等于再起一次，语义容易看错，
+  而且失败时会连带报 unit 状态，没意义。
+- **定时器正在跑时手动触发会被跳过**，日志只有一行 `deployment already running`（flock 非阻塞）。
+  等它结束再跑，或直接看 journal 跟着那次构建。
+- **如果这次要部署的提交里改了 `deploy-if-updated.sh` 本身**，第一次手动跑用的还是磁盘上的旧脚本
+  （bash 启动时已把文件读进内存），`git pull` 换了文件也不影响这次执行 —— 需要再跑一次才生效。
+
+
 ### 前置条件：服务运行用户必须能无密码执行 docker
 
 脚本里的 docker 命令**不带 sudo**（systemd 以 `User=u` 无人值守运行，没有 TTY 输密码，

@@ -87,7 +87,9 @@ if (online.commit && remoteSha && sameRev(online.commit, remoteSha)) {
 } else if (online.commit && remoteSha) {
   console.log(`✗ 线上落后远端：${short(online.commit)} → ${short(remoteSha)}`)
   console.log('  定时器每 5 分钟跑一次，正常情况下等一会儿会自己追平。')
-  console.log('  超过 10 分钟还没动，就到服务器上看：')
+  console.log('  想立刻部署，在服务器上跑（不需要 sudo）：')
+  console.log('    bash ~/lcsc-inventory/scripts/deploy-if-updated.sh')
+  console.log('  超过 10 分钟还没动，说明自动部署本身出问题了，按顺序查：')
   console.log('    systemctl list-timers lcsc-inventory-update.timer')
   console.log('    systemctl status lcsc-inventory-update.service')
   console.log('    journalctl -u lcsc-inventory-update.service -n 50 --no-pager')
