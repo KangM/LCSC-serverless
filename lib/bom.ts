@@ -1,6 +1,6 @@
 import 'server-only'
 import { getDb, type ComponentRow } from './db'
-import { matchesFootprint, matchesName } from './part-match.mjs'
+import { compatibleCandidates, matchesFootprint, matchesName } from './part-match.mjs'
 
 export interface BomRow {
   designator: string
@@ -75,7 +75,11 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
       if (!designator || !name || quantity < 1) {
         return { designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity, matchedPartNumber: null, matchedName: null, matchedValue: null, referenceDesignator: null, stockQuantity: 0, status: 'invalid', message: '缺少名称/位号或数量无效' }
       }
-      const candidates = components.filter((component) => matchesName(component, name))
+      // 品类先对齐（位号 U2 不配电阻），否则「封装未完全匹配」的候选会离谱到没意义
+      const candidates: ComponentRow[] = compatibleCandidates(
+        components.filter((component) => matchesName(component, name)),
+        { designators: designator, name },
+      )
       const footprintMatches = candidates.filter((component) => matchesFootprint(component, footprint))
       // 封装对不上时仍回退到名称匹配（缺料时给个候选），但要在结论里点出来
       const matched = footprintMatches[0] ?? candidates[0] ?? null

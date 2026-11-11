@@ -426,6 +426,8 @@ export interface InventorySnapshotRow {
   description: string
   /** 封装，宽松匹配时用来过滤「同值不同封装」的候选 */
   packageName: string
+  /** 立创二级小类（贴片电阻 / 贴片电容(MLCC) / 单片机…），名称/值匹配时用来卡品类 */
+  category: string
   /** 规格参数表，宽松匹配会拿容值/阻值/电感值做数值比较（1uF = 100nF） */
   specifications: Record<string, string>
   stock: number
@@ -441,7 +443,7 @@ export interface InventorySnapshotRow {
  */
 export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
   const result = await getDb().execute(`
-    SELECT c.part_number, c.mpn, c.name, c.description, c.package_name, c.specifications,
+    SELECT c.part_number, c.mpn, c.name, c.description, c.package_name, c.category, c.specifications,
            c.stock_quantity, c.status,
            (SELECT t.reference_designator FROM transactions t
              WHERE t.part_number = c.part_number
@@ -454,6 +456,7 @@ export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
     name: row.name ? String(row.name) : '',
     description: row.description ? String(row.description) : '',
     packageName: row.package_name ? String(row.package_name) : '',
+    category: row.category ? String(row.category) : '',
     specifications: (() => {
       try {
         const parsed = JSON.parse(String(row.specifications ?? '{}'))
