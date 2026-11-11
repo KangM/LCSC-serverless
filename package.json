@@ -10,7 +10,6 @@
     "db:init": "node scripts/init-db.mjs",
     "db:backup": "bash scripts/backup-db.sh",
     "db:migrate:turso": "node scripts/migrate-turso-to-sqlite.mjs",
-    "db:location": "node scripts/set-component-location.mjs",
     "bom:location": "node scripts/inject-bom-location.mjs",
     "verify:dao": "node --conditions=react-server scripts/verify-dao.mjs",
     "verify:bom-consume": "node --conditions=react-server scripts/verify-bom-consume.mjs",

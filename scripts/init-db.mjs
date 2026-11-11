@@ -79,10 +79,6 @@ const componentColumns = new Set(
 if (!componentColumns.has('status')) {
   await client.execute("ALTER TABLE components ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
 }
-// 库存位置（货架-盒-格），供「辅助焊接备料清单」注入工具读取。
-if (!componentColumns.has('location')) {
-  await client.execute('ALTER TABLE components ADD COLUMN location TEXT')
-}
 
 // 位号是物理存储位置，非空时必须全局唯一（不区分大小写）。
 await client.execute(`

@@ -15,8 +15,6 @@ export interface BomCheckItem extends BomRow {
   /** 匹配元件的标称值（容值/阻值/电感值），便于人工核对有没有配错料 */
   matchedValue: string | null
   referenceDesignator: string | null
-  /** 匹配元件的物理位置，出库时按它去货架取料 */
-  location: string | null
   stockQuantity: number
   status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
   message: string
@@ -190,7 +188,6 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
       stockQuantity: Number(values.stock_quantity ?? 0),
       status: 'active' as const,
       referenceDesignator: (values.reference_designator as string) ?? null,
-      location: (values.location as string) ?? null,
       threshold: Number(values.threshold ?? 0),
       productUrl: null, datasheetUrl: null, imageUrl: null, specifications: (() => {
         try { return JSON.parse(String(values.specifications ?? '{}')) as Record<string, string> } catch { return {} }
@@ -205,7 +202,7 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
       const footprint = String(raw.footprint ?? '').trim()
       const quantity = Math.trunc(Number(raw.quantity ?? 0))
       if (!designator || !name || quantity < 1) {
-        return { designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity, matchedPartNumber: null, matchedName: null, matchedValue: null, referenceDesignator: null, location: null, stockQuantity: 0, status: 'invalid', message: '缺少名称/位号或数量无效' }
+        return { designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity, matchedPartNumber: null, matchedName: null, matchedValue: null, referenceDesignator: null, stockQuantity: 0, status: 'invalid', message: '缺少名称/位号或数量无效' }
       }
       const candidates = components.filter((component) => matchesName(component, name))
       const footprintMatches = candidates.filter((component) => matchesFootprint(component, footprint))
@@ -219,7 +216,7 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
         designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity,
         matchedPartNumber: matched?.partNumber ?? null, matchedName: matched?.name ?? null,
         matchedValue: matched ? primaryValue(matched) : null,
-        referenceDesignator: matched?.referenceDesignator ?? null, location: matched?.location ?? null, stockQuantity, status,
+        referenceDesignator: matched?.referenceDesignator ?? null, stockQuantity, status,
         message: !matched ? '未找到匹配元件' : status === 'sufficient' ? `库存足够${suffix}` : `库存不足${suffix}`,
       }
     }),

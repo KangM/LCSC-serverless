@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@libsql/client", "libsql"],
   // 启用 Cache Components（use cache 指令），用于只读查询 30s 缓存（见 lib/cache.ts）
   cacheComponents: true,
+  experimental: {
+    // /api/bom/inject 要收 ~12MB 的辅助焊接 HTML。proxy.ts 会经手每个请求，
+    // 而 proxy 的请求体默认上限是 10MB，超了会在进入 route 前就被截断
+    // （表现为 request.formData() 抛 "Failed to parse body as FormData."）。
+    proxyClientMaxBodySize: "64mb",
+  },
 };
 
 export default nextConfig;

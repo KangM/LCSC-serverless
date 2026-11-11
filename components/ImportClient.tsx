@@ -29,8 +29,6 @@ interface BomCheckItem extends BomRow {
   matchedName: string | null
   matchedValue: string | null
   referenceDesignator: string | null
-  /** 匹配元件的物理位置（货架-盒-格） */
-  location: string | null
   stockQuantity: number
   status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
   message: string
@@ -54,7 +52,6 @@ interface BomSelectionEntry {
   quantity: number
   stockQuantity: number
   designators: string[]
-  location: string | null
 }
 
 /** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
@@ -156,6 +153,13 @@ export function ImportClient() {
   const [bomConsuming, setBomConsuming] = useState(false)
   const [bomConsumed, setBomConsumed] = useState<BomConsumeResult[] | null>(null)
   // 流水导出时间范围：默认最近一个月（与流水页默认一致）
+  // 立创辅助焊接 HTML → 注入系统位号
+  const solderFileRef = useRef<HTMLInputElement>(null)
+  const [solderFile, setSolderFile] = useState<File | null>(null)
+  const [solderBusy, setSolderBusy] = useState(false)
+  const [solderError, setSolderError] = useState('')
+  const [solderResult, setSolderResult] = useState<{ name: string; items: number; designators: number; noRef: number } | null>(null)
+
   const [exportFrom, setExportFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -259,7 +263,6 @@ export function ImportClient() {
         quantity: 0,
         stockQuantity: item.stockQuantity,
         designators: [],
-        location: item.location,
       }
       entry.quantity += item.quantity
       if (item.designator) entry.designators.push(item.designator)
@@ -316,6 +319,46 @@ export function ImportClient() {
       setError(e instanceof Error ? e.message : '出库失败')
     } finally {
       setBomConsuming(false)
+    }
+  }
+
+  /**
+   * 上传立创「辅助焊接」HTML → 服务端解析 + 匹配系统位号 → 原样返回注入版 HTML。
+   * 用 fetch 而不是表单直提，是为了能把解析错误（结构变了 / 没勾元件）显示在页面上。
+   */
+  async function injectSolderHtml() {
+    if (!solderFile) return
+    setSolderBusy(true)
+    setSolderError('')
+    setSolderResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', solderFile)
+      const res = await fetch('/api/bom/inject', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(data?.error || `处理失败（HTTP ${res.status}）`)
+      }
+      const blob = await res.blob()
+      const name = `${solderFile.name.replace(/\.html?$/i, '')}-库存位置.html`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      setSolderResult({
+        name,
+        items: Number(res.headers.get('X-Bom-Items') || 0),
+        designators: Number(res.headers.get('X-Bom-Designators') || 0),
+        noRef: Number(res.headers.get('X-Bom-No-Reference') || 0),
+      })
+    } catch (e) {
+      setSolderError(e instanceof Error ? e.message : '处理失败')
+    } finally {
+      setSolderBusy(false)
     }
   }
 
@@ -473,10 +516,9 @@ export function ImportClient() {
                               {item.matchedPartNumber}
                               {item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}
                             </div>
-                            <div className="text-[11px] text-neutral-400">
-                              {item.matchedValue ? `${item.matchedValue} · ` : ''}
-                              {item.location ? `位置 ${item.location}` : '位置未录'}
-                            </div>
+                            {item.matchedValue && (
+                              <div className="text-[11px] text-neutral-400">{item.matchedValue}</div>
+                            )}
                           </>
                         ) : '-'}
                       </td>
@@ -517,8 +559,6 @@ export function ImportClient() {
                 <ul className="mt-1 space-y-0.5">
                   {bomSelection.map((entry) => (
                     <li key={entry.partNumber} className={entry.stockQuantity < entry.quantity ? 'text-amber-600' : ''}>
-                      <span className="font-mono">{entry.location ?? '未录位置'}</span>
-                      {' · '}
                       {entry.partNumber}
                       {entry.value ? ` · ${entry.value}` : ''}
                       {entry.name ? ` · ${entry.name}` : ''}：需求 {entry.quantity} / 库存 {entry.stockQuantity}
@@ -552,6 +592,51 @@ export function ImportClient() {
                   ))}
                 </ul>
               </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="section_title mb-3 text-sm font-semibold text-neutral-500">辅助焊接 HTML（注入库存位置）</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={solderFileRef}
+            type="file"
+            accept=".html,.htm,text/html"
+            className="hidden"
+            onChange={(e) => {
+              setSolderFile(e.target.files?.[0] ?? null)
+              setSolderResult(null)
+              setSolderError('')
+            }}
+          />
+          <Button variant="secondary" onClick={() => solderFileRef.current?.click()}>
+            选择辅助焊接 HTML
+          </Button>
+          {solderFile && (
+            <span className="text-sm text-neutral-600">
+              {solderFile.name}（{(solderFile.size / 1048576).toFixed(1)}MB）
+            </span>
+          )}
+          <Button onClick={injectSolderHtml} disabled={!solderFile || solderBusy}>
+            {solderBusy ? '处理中…' : '生成带库存位置的 HTML'}
+          </Button>
+        </div>
+        <p className="hint_text mt-2 text-xs text-neutral-400">
+          立创EDA 导出的「辅助焊接」HTML 原样上传即可。输出文件其余内容一字节不动，只多一个
+          「📍 备料清单」按钮（Alt+L）：按库存位置排序、支持搜索 / 只看缺料 / 导出 CSV / 打印。
+          库存位置取自元件在系统里录入的位号。
+        </p>
+        {solderError && <p className="mt-2 text-sm text-red-600">{solderError}</p>}
+        {solderResult && (
+          <div className="mt-3 rounded-lg bg-neutral-50 p-3 text-xs text-neutral-700">
+            已生成 <span className="font-mono">{solderResult.name}</span> 并开始下载：
+            {solderResult.items} 种料 / {solderResult.designators} 个位号
+            {solderResult.noRef > 0 ? (
+              <span className="text-amber-600"> · {solderResult.noRef} 种在系统里还没录位号</span>
+            ) : (
+              <span className="text-green-600"> · 位号齐全</span>
             )}
           </div>
         )}

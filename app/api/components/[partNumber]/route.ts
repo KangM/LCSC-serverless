@@ -1,12 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getComponent } from '@/lib/cache'
-import {
-  deleteComponent,
-  setLocation,
-  setReferenceDesignator,
-  setThreshold,
-  upsertComponentFromLcsc,
-} from '@/lib/db'
+import { deleteComponent, setReferenceDesignator, setThreshold, upsertComponentFromLcsc } from '@/lib/db'
 import { lcsc } from '@/lib/lcsc'
 
 type Params = { params: Promise<{ partNumber: string }> }
@@ -20,7 +14,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 }
 
 /**
- * PATCH /api/components/[partNumber] — 修改阈值、位号、物理位置或刷新立创信息
+ * PATCH /api/components/[partNumber] — 修改阈值、位号或刷新立创信息
  */
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { partNumber } = await params
@@ -45,24 +39,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     } catch (error) {
       return NextResponse.json(
         { ok: false, error: error instanceof Error ? error.message : '位号保存失败' },
-        { status: 400 },
-      )
-    }
-  }
-
-  if (body?.action === 'location') {
-    if (typeof body.location !== 'string' && body.location !== null) {
-      return NextResponse.json({ ok: false, error: '位置必须是文本' }, { status: 400 })
-    }
-    if (typeof body.location === 'string' && body.location.length > 40) {
-      return NextResponse.json({ ok: false, error: '位置最多 40 个字符' }, { status: 400 })
-    }
-    try {
-      const item = await setLocation(partNumber, body.location)
-      return NextResponse.json({ ok: true, item })
-    } catch (error) {
-      return NextResponse.json(
-        { ok: false, error: error instanceof Error ? error.message : '位置保存失败' },
         { status: 400 },
       )
     }

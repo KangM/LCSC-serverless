@@ -9,7 +9,7 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-const ALLOWED_SORTS = new Set(['name', 'brand', 'package', 'category', 'location', 'stock', 'price', 'updated'])
+const ALLOWED_SORTS = new Set(['name', 'brand', 'package', 'category', 'stock', 'price', 'updated'])
 
 export default async function ComponentsPage({ searchParams }: Props) {
   const sp = await searchParams
@@ -23,8 +23,6 @@ export default async function ComponentsPage({ searchParams }: Props) {
   const page = Number(get('page')) || 1
   const statusParam = get('status')
   const status = statusParam === 'deleted' || statusParam === 'all' ? statusParam : 'active'
-  const locParam = get('loc')
-  const locationState: 'set' | 'unset' | 'all' = locParam === 'set' || locParam === 'unset' ? locParam : 'all'
 
   const [categoryCounts, packages] = await Promise.all([listCategoryCounts(), listPackageNames()])
   const groups = groupCategories(categoryCounts)
@@ -51,7 +49,6 @@ export default async function ComponentsPage({ searchParams }: Props) {
     categories: categoryFilter,
     packageName: get('package'),
     status,
-    locationState,
     sort: sort && ALLOWED_SORTS.has(sort) ? (sort as never) : 'updated',
     order: order === 'asc' ? 'asc' : 'desc',
     page,
@@ -71,7 +68,6 @@ export default async function ComponentsPage({ searchParams }: Props) {
           category: activeMinor,
           packageName: get('package') ?? '',
           status,
-          locationState,
           sort: sort ?? 'updated',
           order: order ?? 'desc',
           page,

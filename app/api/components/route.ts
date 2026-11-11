@@ -5,15 +5,13 @@ import { stockIn } from '@/lib/db'
 import { lcsc, type ComponentDetail } from '@/lib/lcsc'
 
 /**
- * GET /api/components?q=&major=&category=&package=&status=&loc=&sort=&order=&page=&pageSize=
+ * GET /api/components?q=&major=&category=&package=&status=&sort=&order=&page=&pageSize=
  * 分类筛选支持两级：major=大类（展开成该大类下的小类），category=小类（可逗号分隔多个）。
- * loc=set|unset 按「是否已录物理位置」筛选。
  */
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams
   const categoryParam = sp.get('category')
   const majorParam = sp.get('major')
-  const locParam = sp.get('loc')
 
   let categories: string[] | undefined
   if (categoryParam) {
@@ -28,7 +26,6 @@ export async function GET(request: NextRequest) {
     categories,
     packageName: sp.get('package') ?? undefined,
     status: (sp.get('status') as 'active' | 'deleted' | 'all' | null) ?? undefined,
-    locationState: locParam === 'set' || locParam === 'unset' ? locParam : undefined,
     sort: (sp.get('sort') as never) ?? undefined,
     order: (sp.get('order') as never) ?? undefined,
     page: sp.get('page') ? Number(sp.get('page')) : undefined,

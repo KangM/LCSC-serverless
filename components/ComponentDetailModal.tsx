@@ -44,8 +44,6 @@ export function ComponentDetailModal({
   const [thresholdValue, setThresholdValue] = useState('0')
   const [editingReference, setEditingReference] = useState(false)
   const [referenceValue, setReferenceValue] = useState('')
-  const [editingLocation, setEditingLocation] = useState(false)
-  const [locationValue, setLocationValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -67,7 +65,6 @@ export function ComponentDetailModal({
       setRow(detail.item)
       setThresholdValue(String(detail.item.threshold ?? 0))
       setReferenceValue(detail.item.referenceDesignator ?? '')
-      setLocationValue(detail.item.location ?? '')
       setTxs(tx.items ?? [])
     } catch {
       setError('加载失败，请重试')
@@ -112,23 +109,6 @@ export function ComponentDetailModal({
     }
     toast.success('位号已更新')
     setEditingReference(false)
-    void load()
-    onChanged?.()
-  }
-
-  async function saveLocation() {
-    const res = await fetch(`/api/components/${encodeURIComponent(partNumber)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'location', location: locationValue.trim() || null }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      toast.error(data.error || '位置保存失败')
-      return
-    }
-    toast.success('位置已更新')
-    setEditingLocation(false)
     void load()
     onChanged?.()
   }
@@ -275,32 +255,6 @@ export function ComponentDetailModal({
                 <>
                   <span className="font-medium">{row.referenceDesignator ?? '未设置'}</span>
                   <Button size="sm" variant="ghost" onClick={() => setEditingReference(true)}>修改</Button>
-                </>
-              )}
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-sm text-neutral-600">
-              <span>库存位置：</span>
-              {editingLocation ? (
-                <>
-                  <Input
-                    value={locationValue}
-                    onChange={(e) => setLocationValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && void saveLocation()}
-                    placeholder="如 A3-2，留空清空"
-                    maxLength={40}
-                    className="w-32 !py-1"
-                    autoFocus
-                  />
-                  <Button size="sm" onClick={saveLocation}>保存</Button>
-                  <Button size="sm" variant="secondary" onClick={() => {
-                    setLocationValue(row.location ?? '')
-                    setEditingLocation(false)
-                  }}>取消</Button>
-                </>
-              ) : (
-                <>
-                  <span className="font-medium">{row.location ?? '未设置'}</span>
-                  <Button size="sm" variant="ghost" onClick={() => setEditingLocation(true)}>修改</Button>
                 </>
               )}
             </div>

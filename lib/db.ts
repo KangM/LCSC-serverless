@@ -31,8 +31,6 @@ export interface ComponentRow {
   stockQuantity: number
   status: 'active' | 'deleted'
   referenceDesignator: string | null
-  /** 物理位置（货架-盒-格，如 A3-2）；备料清单按它排序走货架 */
-  location: string | null
   threshold: number
   productUrl: string | null
   datasheetUrl: string | null
@@ -72,9 +70,7 @@ export interface ComponentQuery {
   categories?: string[]
   packageName?: string
   status?: 'active' | 'deleted' | 'all'
-  /** 位置筛选：set 只看已录位置，unset 只看还没录的（盘点用） */
-  locationState?: 'set' | 'unset' | 'all'
-  sort?: 'name' | 'brand' | 'package' | 'category' | 'location' | 'stock' | 'price' | 'updated'
+  sort?: 'name' | 'brand' | 'package' | 'category' | 'stock' | 'price' | 'updated'
   order?: 'asc' | 'desc'
   page?: number
   pageSize?: number
@@ -195,7 +191,6 @@ function mapComponent(row: SqlRow): ComponentRow {
     stockQuantity: Number(row.stock_quantity ?? 0),
     status: row.status === 'deleted' ? 'deleted' : 'active',
     referenceDesignator: (row.reference_designator as string) ?? null,
-    location: (row.location as string) ?? null,
     threshold: Number(row.threshold ?? 0),
     productUrl: (row.product_url as string) ?? null,
     datasheetUrl: (row.datasheet_url as string) ?? null,
@@ -335,7 +330,6 @@ const SORT_COLUMNS: Record<string, string> = {
   brand: 'brand',
   package: 'package_name',
   category: 'category',
-  location: 'location',
   stock: 'stock_quantity',
   price: 'price',
   updated: 'updated_at',
@@ -350,13 +344,8 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
   const { q, categories, packageName } = query
   const page = Math.max(1, query.page ?? 1)
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20))
-  const sortKey = query.sort ?? 'updated'
+  const sortCol = SORT_COLUMNS[query.sort ?? 'updated'] ?? 'updated_at'
   const order = query.order === 'asc' ? 'ASC' : 'DESC'
-  // 按位置排序时把「未录位置」压到最后（空串等同 NULL），货架顺序才不会被空白行打断
-  const orderBySql =
-    sortKey === 'location'
-      ? `CASE WHEN location IS NULL OR trim(location) = '' THEN 1 ELSE 0 END ASC, location COLLATE NOCASE ${order}`
-      : `${SORT_COLUMNS[sortKey] ?? 'updated_at'} ${order}`
 
   const where: string[] = []
   const args: InValue[] = []
@@ -378,11 +367,6 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
     where.push('package_name = ?')
     args.push(packageName.trim())
   }
-  if (query.locationState === 'set') {
-    where.push("location IS NOT NULL AND trim(location) <> ''")
-  } else if (query.locationState === 'unset') {
-    where.push("(location IS NULL OR trim(location) = '')")
-  }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const client = getDb()
@@ -401,7 +385,7 @@ export async function listComponents(query: ComponentQuery = {}): Promise<Paged<
                 ORDER BY transactions.id DESC LIMIT 1
               ) AS reference_designator
               FROM components ${whereSql}
-              ORDER BY ${orderBySql}, part_number ASC
+              ORDER BY ${sortCol} ${order}, part_number ASC
               LIMIT ? OFFSET ?`,
         args: [...args, pageSize, (page - 1) * pageSize],
       },
@@ -432,6 +416,39 @@ export async function getComponent(partNumber: string): Promise<ComponentRow | n
     args: [normalizePartNumber(partNumber)],
   })
   return result.rows.length ? mapComponent(result.rows[0]) : null
+}
+
+/** 备料清单匹配用的轻量记录（只要编号/型号/库存/位号，不取整行） */
+export interface InventorySnapshotRow {
+  partNumber: string
+  mpn: string
+  name: string
+  stock: number
+  /** 系统里录入的位号（货位），如 R1G1；空串表示没录 */
+  reference: string
+}
+
+/**
+ * 一次性全量快照，供「辅助焊接 HTML 注入」按编号/型号匹配用。
+ *
+ * 位号取 transactions 里该料**最新一条**非空记录 —— 与 getComponent 的口径一致，
+ * 这样页面显示的位置和注入到 html 里的位置永远是同一个。
+ */
+export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
+  const result = await getDb().execute(`
+    SELECT c.part_number, c.mpn, c.name, c.stock_quantity, c.status,
+           (SELECT t.reference_designator FROM transactions t
+             WHERE t.part_number = c.part_number
+               AND t.reference_designator IS NOT NULL AND trim(t.reference_designator) <> ''
+             ORDER BY t.id DESC LIMIT 1) AS reference_designator
+    FROM components c`)
+  return result.rows.map((row) => ({
+    partNumber: normalizePartNumber(String(row.part_number ?? '')),
+    mpn: row.mpn ? String(row.mpn).trim() : '',
+    name: row.name ? String(row.name) : '',
+    stock: Number(row.stock_quantity ?? 0),
+    reference: row.reference_designator ? String(row.reference_designator).trim() : '',
+  }))
 }
 
 /** 按立创编号批量查询（CSV 导入去重用） */
@@ -519,35 +536,6 @@ export async function setThreshold(partNumber: string, threshold: number): Promi
     args: [Math.max(0, Math.trunc(threshold)), new Date().toISOString(), normalizePartNumber(partNumber)],
   })
   await invalidateCache()
-}
-
-/**
- * 归一化物理位置：去空白、全角转半角、统一大写。
- * 大小写不统一会让 SQLite 的 BINARY 排序把 a1-3 排到 Z 后面，备料清单按位置
- * 走货架时就乱了；位置本身是货架标签，大写也不会歧义。
- */
-export function normalizeLocation(value: string | null | undefined): string | null {
-  if (value == null) return null
-  const normalized = value
-    .replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
-    .replace(/[\u3000\u00a0]/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toUpperCase()
-  return normalized || null
-}
-
-/** 修改元件物理位置（自由文本，建议「货架-盒-格」）；空值表示清空 */
-export async function setLocation(partNumber: string, value: string | null): Promise<ComponentRow> {
-  const pn = normalizePartNumber(partNumber)
-  const location = normalizeLocation(value)
-  const result = await getDb().execute({
-    sql: 'UPDATE components SET location = ?, updated_at = ? WHERE part_number = ?',
-    args: [location, new Date().toISOString(), pn],
-  })
-  if (!result.rowsAffected) throw new Error(`元件 ${pn} 不存在`)
-  await invalidateCache()
-  return (await getComponent(pn))!
 }
 
 // ---------------------------------------------------------------------------
