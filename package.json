@@ -17,7 +17,8 @@
     "verify:part-match": "node scripts/verify-part-match.mjs",
     "smoke:bom-consume": "node scripts/smoke-bom-consume.mjs",
     "verify:backup-status": "node scripts/verify-backup-status.mjs",
-    "verify:bom-items": "node scripts/verify-bom-items.mjs"
+    "verify:bom-items": "node scripts/verify-bom-items.mjs",
+    "deploy:check": "node scripts/deploy-check.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
