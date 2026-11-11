@@ -50,6 +50,7 @@ export default async function ComponentDetailPage({ params }: Props) {
             {row.brand && <Badge>{row.brand}</Badge>}
             {row.packageName && <Badge color="blue">{row.packageName}</Badge>}
             {row.category && <Badge color="amber">{row.category}</Badge>}
+            {row.location && <Badge color="green">位置 {row.location}</Badge>}
           </div>
           <div className="mt-2 flex gap-4 text-sm text-neutral-600">
             {row.price != null && <span>立创价格 ¥{row.price}</span>}
@@ -85,6 +86,7 @@ export default async function ComponentDetailPage({ params }: Props) {
               name={row.name}
               stock={row.stockQuantity}
               threshold={row.threshold}
+              location={row.location}
             />
           </div>
           <p className="mt-3 text-xs text-neutral-400">

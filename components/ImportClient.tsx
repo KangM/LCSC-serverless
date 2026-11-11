@@ -29,6 +29,8 @@ interface BomCheckItem extends BomRow {
   matchedName: string | null
   matchedValue: string | null
   referenceDesignator: string | null
+  /** 匹配元件的物理位置（货架-盒-格） */
+  location: string | null
   stockQuantity: number
   status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
   message: string
@@ -52,6 +54,7 @@ interface BomSelectionEntry {
   quantity: number
   stockQuantity: number
   designators: string[]
+  location: string | null
 }
 
 /** 本地时区的 YYYY-MM-DD（避免 toISOString 的 UTC 偏移差一天） */
@@ -256,6 +259,7 @@ export function ImportClient() {
         quantity: 0,
         stockQuantity: item.stockQuantity,
         designators: [],
+        location: item.location,
       }
       entry.quantity += item.quantity
       if (item.designator) entry.designators.push(item.designator)
@@ -469,9 +473,10 @@ export function ImportClient() {
                               {item.matchedPartNumber}
                               {item.referenceDesignator ? ` · ${item.referenceDesignator}` : ''}
                             </div>
-                            {item.matchedValue && (
-                              <div className="text-[11px] text-neutral-400">{item.matchedValue}</div>
-                            )}
+                            <div className="text-[11px] text-neutral-400">
+                              {item.matchedValue ? `${item.matchedValue} · ` : ''}
+                              {item.location ? `位置 ${item.location}` : '位置未录'}
+                            </div>
                           </>
                         ) : '-'}
                       </td>
@@ -512,6 +517,8 @@ export function ImportClient() {
                 <ul className="mt-1 space-y-0.5">
                   {bomSelection.map((entry) => (
                     <li key={entry.partNumber} className={entry.stockQuantity < entry.quantity ? 'text-amber-600' : ''}>
+                      <span className="font-mono">{entry.location ?? '未录位置'}</span>
+                      {' · '}
                       {entry.partNumber}
                       {entry.value ? ` · ${entry.value}` : ''}
                       {entry.name ? ` · ${entry.name}` : ''}：需求 {entry.quantity} / 库存 {entry.stockQuantity}

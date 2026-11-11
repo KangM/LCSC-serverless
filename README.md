@@ -21,6 +21,21 @@
 | 统计报表 | 库存价值按分类/封装分布、近 30 天出入库趋势、热门出库 TOP10（Recharts） |
 | 设置 | OCR 服务配置（OpenAI 兼容视觉接口 / RapidOCR 自托管） |
 | 焊接备料清单 | 给立创EDA「辅助焊接」导出的 HTML 注入库存位置抽屉（见下） |
+| 库存位置 | `components.location`（货架-盒-格）；列表可按位置排序 / 只看未录，详情页可直接改 |
+
+## 库存位置（货架-盒-格）
+
+`components.location` 是自由文本，约定「货架-盒-格」这种能一眼走到的写法（`A3-2`、`B12-05`）。
+写入时统一归一化：去空白、全角转半角、转大写（大小写混用会让 SQLite 排序把 `a1-3` 排到 `Z` 后面，
+备料清单按位置走货架时就乱了）。
+
+三个入口都能改，改完列表/清单立即生效：
+
+- 元件列表 → 点元件名打开详情弹窗 → 「库存位置 · 修改」
+- 元件详情页 `/components/<编号>` → 库存卡里「库存位置 · 修改」
+- 命令行（批量/初始化用）：`npm run db:location -- ...`
+
+列表页支持 `?sort=location`（按位置排，未录位置的压到最后）和 `?loc=set|unset`（只看已录 / 只看未录）。
 
 ## 辅助焊接备料清单（注入库存位置）
 
@@ -36,6 +51,10 @@ npm run db:location -- --list                          # 谁还没录位置
 # 2. 注入
 npm run bom:location -- "D:/Downloads/InteractiveBOM_xxx.html"
 #   → 同目录输出 xxx-库存位置.html（也可 -o 指定）
+
+# 3. 顺手导出「BOM 校对」CSV，丢给站内 /import 页 → 一键出库
+npm run bom:location -- "D:/Downloads/InteractiveBOM_xxx.html" --csv
+#   → 同目录输出 xxx.bom.csv（列：位号,名称,封装,供应商,数量）
 ```
 
 输出页右下角多一个「📍 备料清单」按钮（`Alt+L`）：按**库存位置排序**走一遍货架就能备齐，
@@ -43,6 +62,7 @@ npm run bom:location -- "D:/Downloads/InteractiveBOM_xxx.html"
 
 - 位置来源：`components.location`（与 app 同一套数据库解析规则，Turso/本地都支持）
 - 匹配顺序：立创编号 → 厂商型号 → 值+封装（值只在没有编号/型号时兜底，避免不同料串位置）
+- `--csv` 的「名称」列写立创编号而非值：BOM 核对按编号匹配最准，写 `1uF` 会和多个料撞车
 - `--locations x.json` 可用覆盖表先预览（库里还没录位置时），格式 `{"C15849":{"location":"A1-3","stock":40}}`
 - 结构探测：导出格式变化（找不到 `designator_info`）会直接报错，不会静默输出空清单
 

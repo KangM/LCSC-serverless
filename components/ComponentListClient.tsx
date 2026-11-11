@@ -18,6 +18,8 @@ export interface ListState {
   category: string
   packageName: string
   status: 'active' | 'deleted' | 'all'
+  /** 位置筛选：set 只看已录位置，unset 只看没录的 */
+  locationState: 'set' | 'unset' | 'all'
   sort: string
   order: string
   page: number
@@ -25,6 +27,7 @@ export interface ListState {
 
 const SORT_OPTIONS = [
   { value: 'updated', label: '最近更新' },
+  { value: 'location', label: '库存位置' },
   { value: 'name', label: '名称' },
   { value: 'brand', label: '品牌' },
   { value: 'package', label: '封装' },
@@ -50,6 +53,7 @@ export function ComponentListClient({
   const [category, setCategory] = useState(state.category)
   const [packageName, setPackageName] = useState(state.packageName)
   const [status, setStatus] = useState<ListState['status']>(state.status)
+  const [locationState, setLocationState] = useState<ListState['locationState']>(state.locationState)
   const [sort, setSort] = useState(state.sort)
   const [order, setOrder] = useState(state.order)
 
@@ -68,13 +72,14 @@ export function ComponentListClient({
   )
 
   function apply(partial: Partial<ListState>) {
-    const next = { q, major, category, packageName, status, sort, order, page: 1, ...partial }
+    const next = { q, major, category, packageName, status, locationState, sort, order, page: 1, ...partial }
     const sp = new URLSearchParams()
     if (next.q) sp.set('q', next.q)
     if (next.major) sp.set('major', next.major)
     if (next.category) sp.set('category', next.category)
     if (next.packageName) sp.set('package', next.packageName)
     if (next.status !== 'active') sp.set('status', next.status)
+    if (next.locationState !== 'all') sp.set('loc', next.locationState)
     if (next.sort && next.sort !== 'updated') sp.set('sort', next.sort)
     if (next.order && next.order !== 'desc') sp.set('order', next.order)
     if (next.page > 1) sp.set('page', String(next.page))
@@ -194,6 +199,17 @@ export function ComponentListClient({
             <option value="all">全部状态</option>
           </Select>
         </div>
+        <div className="w-28">
+          <Select value={locationState} onChange={(e) => {
+            const value = e.target.value as ListState['locationState']
+            setLocationState(value)
+            apply({ locationState: value })
+          }}>
+            <option value="all">位置：全部</option>
+            <option value="set">已录位置</option>
+            <option value="unset">未录位置</option>
+          </Select>
+        </div>
         <div className="w-36">
           <Select value={sort} onChange={(e) => { setSort(e.target.value); apply({ sort: e.target.value }) }}>
             {SORT_OPTIONS.map((o) => (
@@ -288,6 +304,7 @@ export function ComponentListClient({
               </th>
               <th className="px-4 py-2.5">元件</th>
               <th className="px-4 py-2.5 text-center">位号</th>
+              <th className="px-4 py-2.5 text-center">位置</th>
               <th className="px-4 py-2.5 text-center">规格参数</th>
               <th className="px-4 py-2.5 text-center">库存</th>
               <th className="px-4 py-2.5 text-center">品牌</th>
@@ -298,7 +315,7 @@ export function ComponentListClient({
           </thead>
           <tbody>
             {initial.items.length === 0 ? (
-              <tr><td colSpan={9}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
+              <tr><td colSpan={10}><EmptyState message="没有元件，点击右上角「+ 入库」添加" /></td></tr>
             ) : (
               initial.items.map((row) => {
                 const low = row.threshold > 0 && row.stockQuantity <= row.threshold
@@ -336,6 +353,13 @@ export function ComponentListClient({
                       </div>
                     </td>
                     <td className="px-4 py-2 text-center text-neutral-600">{row.referenceDesignator ?? '-'}</td>
+                    <td className="px-4 py-2 text-center">
+                      {row.location ? (
+                        <span className="font-mono text-xs font-medium text-neutral-700">{row.location}</span>
+                      ) : (
+                        <span className="text-xs text-neutral-300">—</span>
+                      )}
+                    </td>
                     <td className="w-[28rem] min-w-[28rem] px-4 py-2 align-top">
                       {Object.entries(row.specifications).length === 0 ? (
                         <span className="text-xs text-neutral-400">暂无规格参数</span>

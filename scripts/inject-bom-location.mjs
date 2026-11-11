@@ -10,12 +10,14 @@
  *
  * 用法:
  *   node scripts/inject-bom-location.mjs <input.html> [-o out.html]
- *       [--db data/inventory.db] [--locations data/locations.json] [--json]
+ *       [--db data/inventory.db] [--locations data/locations.json] [--json] [--csv [out.csv]]
  *
  *   --db        库存库（默认与 app 同一套规则：.env.local 的 Turso → 本地 data/inventory.db）
  *               读 components.location / stock_quantity
  *   --locations 位置覆盖表（JSON: {"C15849":"A1-1"}，键支持立创编号 / 厂商型号 / lc_code），
  *               用于库里还没录位置时先跑通、或从表格批量导入前预览
+ *   --csv       同时导出「BOM 校对」CSV（列：位号,名称,封装,供应商,数量），
+ *               可直接丢给站内 /import 的 BOM 核对 → 一键出库
  *   --json      额外把解析出的备料清单打印成 JSON（调试用）
  *
  * 输出：默认写到输入文件同目录、文件名加 `-库存位置` 后缀。
@@ -33,21 +35,28 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { input: null, out: null, db: null, locations: null, json: false }
+  const args = { input: null, out: null, db: null, locations: null, json: false, csv: null }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '-o' || a === '--out') args.out = argv[++i]
     else if (a === '--db') args.db = path.resolve(argv[++i])
     else if (a === '--locations') args.locations = path.resolve(argv[++i])
     else if (a === '--json') args.json = true
-    else if (!a.startsWith('-') && !args.input) args.input = path.resolve(a)
+    else if (a === '--csv') {
+      // --csv 后面跟路径就用它，否则自动命名（输入文件同名 .bom.csv）
+      const next = argv[i + 1]
+      if (next && !next.startsWith('-')) {
+        args.csv = path.resolve(next)
+        i++
+      } else args.csv = true
+    } else if (!a.startsWith('-') && !args.input) args.input = path.resolve(a)
     else {
       console.error(`未知参数: ${a}`)
       process.exit(2)
     }
   }
   if (!args.input) {
-    console.error('用法: node scripts/inject-bom-location.mjs <input.html> [-o out.html] [--db ...] [--locations ...]')
+    console.error('用法: node scripts/inject-bom-location.mjs <input.html> [-o out.html] [--db ...] [--locations ...] [--csv [out.csv]]')
     process.exit(2)
   }
   return args
@@ -340,6 +349,37 @@ function pcbNameOf(input) {
 }
 
 // ---------------------------------------------------------------------------
+// 4. 导出「BOM 校对」CSV（喂给站内 /import 的 BOM 核对 → 一键出库）
+// ---------------------------------------------------------------------------
+
+/**
+ * 列名刻意用「位号/名称/封装/供应商/数量」—— 这是 /import 页 parseBomCsv 认识的表头。
+ *
+ * 名称列写**立创编号**而不是值：checkBom 的匹配是按编号/型号/名称/规格逐个比，
+ * 写 "1uF" 这种值会和多个不同料撞车（同一值可能有多个编号），编号是唯一且最稳的。
+ * 位号含逗号，统一加引号（/import 的 CSV 解析支持引号包裹）。
+ */
+function buildBomCsv(items) {
+  const cell = (value) => {
+    const text = String(value ?? '')
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+  const lines = ['位号,名称,封装,供应商,数量']
+  for (const it of items) {
+    lines.push(
+      [
+        cell(it.designators),
+        cell(it.partNumber || it.mpn || it.value),
+        cell(it.footprint),
+        cell(it.partNumber),
+        it.qty,
+      ].join(','),
+    )
+  }
+  return lines.join('\r\n') + '\r\n'
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
@@ -370,6 +410,14 @@ const out = args.out
 
 await writeFile(out, inject(html, payload, panelSource), 'utf8')
 
+let csvOut = null
+if (args.csv) {
+  csvOut = args.csv === true
+    ? path.join(path.dirname(out), path.basename(out, path.extname(out)).replace(/-库存位置$/, '') + '.bom.csv')
+    : args.csv
+  await writeFile(csvOut, buildBomCsv(withInv), 'utf8')
+}
+
 // ---------------------------------------------------------------------------
 // 报告
 // ---------------------------------------------------------------------------
@@ -380,6 +428,7 @@ const unmatched = withInv.filter((it) => !it.matched)
 
 console.log(`输入: ${args.input}`)
 console.log(`输出: ${out}`)
+if (csvOut) console.log(`BOM CSV: ${csvOut}（可直接在站内 /import 页做 BOM 核对并一键出库）`)
 console.log(
   `元件: ${payload.counts.items} 种料 / ${payload.counts.designators} 个位号` +
     ` · 位置缺失 ${noLoc.length} · 缺料 ${bad.length} · 库存未匹配 ${unmatched.length}` +

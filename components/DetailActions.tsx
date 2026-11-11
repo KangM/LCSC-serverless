@@ -12,11 +12,13 @@ export function DetailActions({
   name,
   stock,
   threshold,
+  location,
 }: {
   partNumber: string
   name?: string | null
   stock: number
   threshold: number
+  location?: string | null
 }) {
   const router = useRouter()
   const toast = useToast()
@@ -24,6 +26,8 @@ export function DetailActions({
   const [stockTarget, setStockTarget] = useState<{ mode: StockMode } | null>(null)
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [thresholdValue, setThresholdValue] = useState(String(threshold))
+  const [editingLocation, setEditingLocation] = useState(false)
+  const [locationValue, setLocationValue] = useState(location ?? '')
   const [refreshing, setRefreshing] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -40,6 +44,21 @@ export function DetailActions({
     if (res.ok) {
       setEditingThreshold(false)
       refresh()
+    }
+  }
+
+  async function saveLocation() {
+    const res = await fetch(`/api/components/${encodeURIComponent(partNumber)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'location', location: locationValue.trim() || null }),
+    })
+    if (res.ok) {
+      setEditingLocation(false)
+      refresh()
+    } else {
+      const data = await res.json().catch(() => null)
+      setMessage(data?.error || '位置保存失败')
     }
   }
 
@@ -77,6 +96,33 @@ export function DetailActions({
         <Button variant="secondary" onClick={refreshFromLcsc} disabled={refreshing}>
           {refreshing ? '刷新中…' : '刷新立创信息'}
         </Button>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm text-neutral-600">
+        <span>库存位置：</span>
+        {editingLocation ? (
+          <>
+            <Input
+              value={locationValue}
+              onChange={(e) => setLocationValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void saveLocation()}
+              placeholder="如 A3-2，留空清空"
+              maxLength={40}
+              className="w-32 !py-1"
+              autoFocus
+            />
+            <Button size="sm" onClick={saveLocation}>保存</Button>
+            <Button size="sm" variant="secondary" onClick={() => {
+              setLocationValue(location ?? '')
+              setEditingLocation(false)
+            }}>取消</Button>
+          </>
+        ) : (
+          <>
+            <span className="font-medium">{location ?? '未设置'}</span>
+            <Button size="sm" variant="ghost" onClick={() => setEditingLocation(true)}>修改</Button>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-2 text-sm text-neutral-600">
