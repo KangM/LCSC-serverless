@@ -155,6 +155,49 @@ sudo journalctl -u lcsc-inventory-update.service -f
 - **如果这次要部署的提交里改了 `deploy-if-updated.sh` 本身**，第一次手动跑用的还是磁盘上的旧脚本
   （bash 启动时已把文件读进内存），`git pull` 换了文件也不影响这次执行 —— 需要再跑一次才生效。
 
+### 服务器重启后怎么把项目拉起来
+
+**正常情况：什么都不用做。** `docker-compose.yml` 里 `app` 和 `cron` 都是
+`restart: unless-stopped`，只要 `docker.service` 开机自启（`systemctl is-enabled docker`
+返回 `enabled`），重启后容器会被自动拉起来，约 30~60 秒可访问（入口脚本要初始化/迁移数据库）。
+
+不用登服务器就能确认：
+
+```bash
+curl -s http://<服务器IP>:3000/api/health     # 或在本机 npm run deploy:check
+systemctl is-enabled docker                   # 应为 enabled
+```
+
+**没起来时**（`/api/health` 连不上）：
+
+```bash
+cd ~/lcsc-inventory
+docker compose ps                 # 看容器状态与退出码
+docker compose up -d              # 拉起已有镜像，不重新构建
+docker compose logs --tail=80 app # 还起不来就看日志
+```
+
+四个容易踩的点：
+
+- **`unless-stopped` 管不了「手动停过」的容器**。如果重启前执行过 `docker compose stop`，
+  重启后不会自动起，必须 `docker compose up -d`。
+- **别用 `up -d --build`**。compose 自己构建时 `build.args` 拿不到 `GIT_COMMIT_*`，
+  镜像里的版本号会变空，侧边栏显示「未提供 Git 信息」，看着像没部署。要重建就走
+  `DEPLOY_FORCE=1 bash scripts/deploy-if-updated.sh`（它显式传 `--build-arg`）。
+- **`cron` 容器在 `profiles: ["cron"]` 下**，`docker compose up -d` 不会起它，必须
+  `docker compose --profile cron up -d`。只关心网页的话可以不管。
+- **`data/` 目录是数据库本体**（`./data:/data`），重启、重建容器都不影响；别 `down -v`。
+
+镜像不在了（换机器、`docker image prune -a` 之后）就直接跑一次部署脚本，
+它会 `git pull` + 构建 + 启动：
+
+```bash
+cd ~/lcsc-inventory && DEPLOY_FORCE=1 bash scripts/deploy-if-updated.sh
+```
+
+两个 systemd timer（部署检查、数据库备份）都是 `enable` 过的，重启后自动恢复，
+不需要手动 `start`；想确认真跑了，看 `systemctl list-timers` 的 NEXT 列。
+
 
 ### 前置条件：服务运行用户必须能无密码执行 docker
 
