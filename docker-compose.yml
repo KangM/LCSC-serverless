@@ -9,6 +9,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      # 让 http://<主机名>.local（不带端口）也能直接访问：浏览器默认走 80。
+      # 两条都保留 —— 局域网里可能有人收藏了 :3000 的地址，改掉会失效。
+      # 服务器上 80 若被 nginx 等占用，删掉这一行即可回滚。
+      - "80:3000"
     environment:
       DATABASE_MODE: sqlite
       SQLITE_DATABASE_PATH: /data/inventory.db
