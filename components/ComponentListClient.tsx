@@ -1,13 +1,14 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
-import { Badge, Button, EmptyState, Input, Pagination, Select } from './ui'
+import { useCallback, useMemo, useState } from 'react'
+import { Badge, Button, EmptyState, Input, Pagination, Select, cn } from './ui'
 import { InboundModal } from './InboundModal'
 import { StockActionModal, type StockMode } from './StockActionModal'
 import { ComponentDetailModal } from './ComponentDetailModal'
 import { ImageHoverZoom } from './ImageHoverZoom'
-import type { ComponentRow } from '@/lib/db'
+import { BoxView } from './BoxView'
+import type { BoxComponentRow, ComponentRow } from '@/lib/db'
 import { majorOf, type CategoryGroup } from '@/lib/categories'
 
 export interface ListState {
@@ -37,11 +38,14 @@ export function ComponentListClient({
   initial,
   groups,
   packages,
+  boxItems,
   state,
 }: {
   initial: { items: ComponentRow[]; total: number; page: number; pageSize: number; totalPages: number }
   groups: CategoryGroup[]
   packages: string[]
+  /** 盒视图用的全量数据（不分页），由页面单独查一次 */
+  boxItems: BoxComponentRow[]
   state: ListState
 }) {
   const router = useRouter()
@@ -60,6 +64,15 @@ export function ComponentListClient({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkQty, setBulkQty] = useState('')
+  /**
+   * 视图切换放在客户端状态里、不同步 URL：切视图只是换个看法，
+   * 不该触发一次服务端往返（尤其盒视图还要重新读全量数据）。
+   * 代价是刷新后回到列表 —— 可接受，列表才是默认视角。
+   */
+  const [view, setView] = useState<'list' | 'box'>('list')
+
+  /** 盒视图点格子 → 开详情，与列表页点元件名是同一个弹窗 */
+  const openDetail = useCallback((partNumber: string) => setDetailPn(partNumber), [])
 
   const selectableItems = useMemo(() => initial.items.filter((row) => row.status === 'active'), [initial.items])
   const allSelected = useMemo(
@@ -139,8 +152,8 @@ export function ComponentListClient({
 
   const refresh = () => router.refresh()
 
-  return (
-    <div className="space-y-4">
+  const listView = (
+    <>
       {/* 工具栏 */}
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200 bg-white p-3">
         <div className="w-56">
@@ -384,6 +397,45 @@ export function ComponentListClient({
       </div>
 
       <Pagination page={initial.page} totalPages={initial.totalPages} onPageChange={(p) => apply({ page: p })} />
+    </>
+  )
+
+  return (
+    <div className="space-y-4">
+      {/* 视图切换：列表（默认）/ 按收纳盒 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-0.5 shadow-sm">
+          {(
+            [
+              { value: 'list', label: '列表', hint: '逐行核对、筛选、批量操作' },
+              { value: 'box', label: '盒视图', hint: '按收纳盒看格位，点格子看详情' },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setView(option.value)}
+              title={option.hint}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition',
+                view === option.value
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-neutral-100',
+              )}
+            >
+              <ViewIcon name={option.value} />
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-neutral-400">
+          {view === 'list'
+            ? `共 ${initial.total} 个元件`
+            : `${boxItems.length} 个元件 · 按物理盒排列`}
+        </span>
+      </div>
+
+      {view === 'box' ? <BoxView items={boxItems} onPick={openDetail} /> : listView}
 
       {/* 弹窗 */}
       <InboundModal
@@ -415,5 +467,35 @@ export function ComponentListClient({
         }}
       />
     </div>
+  )
+}
+
+/** 视图切换的小图标：列表 = 逐行，盒视图 = 九宫格 */
+function ViewIcon({ name }: { name: 'list' | 'box' }) {
+  const common = {
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round' as const,
+    className: 'h-3.5 w-3.5',
+  }
+  if (name === 'list') {
+    return (
+      <svg {...common}>
+        <path d="M5.5 3.5h8M5.5 8h8M5.5 12.5h8" />
+        <circle cx="2.5" cy="3.5" r=".9" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="8" r=".9" fill="currentColor" stroke="none" />
+        <circle cx="2.5" cy="12.5" r=".9" fill="currentColor" stroke="none" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1" />
+      <rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1" />
+      <rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1" />
+      <rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1" />
+    </svg>
   )
 }

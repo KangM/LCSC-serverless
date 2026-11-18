@@ -14,6 +14,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createClient, type Client } from '@libsql/client'
 import type { ComponentDetail } from './lcsc'
+import { primarySpec } from './boxes'
 
 // ---------------------------------------------------------------------------
 // 类型
@@ -467,6 +468,54 @@ export async function getInventorySnapshot(): Promise<InventorySnapshotRow[]> {
     })(),
     stock: Number(row.stock_quantity ?? 0),
     reference: row.reference_designator ? String(row.reference_designator).trim() : '',
+  }))
+}
+
+/**
+ * 盒视图用的精简行：比 ComponentRow 少一半字段，全量传给客户端也不心疼。
+ */
+export interface BoxComponentRow {
+  partNumber: string
+  name: string
+  mpn: string
+  packageName: string
+  category: string
+  stock: number
+  threshold: number
+  /** 系统录入的位号，如 R1G1；空串表示没录 */
+  reference: string
+  /** 格子里显示的主规格值，服务端算好，客户端只管渲染 */
+  value: string
+}
+
+/**
+ * 盒视图数据源：全量在库元件 + 最新位号 + 格子里要显示的主规格值。
+ *
+ * 与 listComponents 的区别是**不分页、不筛选** —— 盒视图按物理盒渲染，
+ * 少一格就对不上真实货架，分页会让格子凭空缺一块。
+ * 位号口径与 getComponent / getInventorySnapshot 一致（最新一条非空记录）。
+ */
+export async function listBoxComponents(): Promise<BoxComponentRow[]> {
+  const result = await getDb().execute(`
+    SELECT c.part_number, c.mpn, c.name, c.package_name, c.category, c.specifications,
+           c.stock_quantity, c.threshold,
+           (SELECT t.reference_designator FROM transactions t
+             WHERE t.part_number = c.part_number
+               AND t.reference_designator IS NOT NULL AND trim(t.reference_designator) <> ''
+             ORDER BY t.id DESC LIMIT 1) AS reference_designator
+    FROM components c
+    WHERE c.status = 'active'
+    ORDER BY c.part_number ASC`)
+  return result.rows.map((row) => ({
+    partNumber: normalizePartNumber(String(row.part_number ?? '')),
+    name: row.name ? String(row.name) : '',
+    mpn: row.mpn ? String(row.mpn).trim() : '',
+    packageName: row.package_name ? String(row.package_name) : '',
+    category: row.category ? String(row.category) : '',
+    stock: Number(row.stock_quantity ?? 0),
+    threshold: Number(row.threshold ?? 0),
+    reference: row.reference_designator ? String(row.reference_designator).trim() : '',
+    value: primarySpec(parseSpecs(row.specifications as string | null)),
   }))
 }
 

@@ -23,12 +23,14 @@ import {
   listComponents as rawListComponents,
   listCategoryCounts as rawListCategoryCounts,
   listPackageNames as rawListPackageNames,
+  listBoxComponents as rawListBoxComponents,
   valueByCategory as rawValueByCategory,
   valueByPackage as rawValueByPackage,
   dailyFlow as rawDailyFlow,
   topOutgoing as rawTopOutgoing,
 } from './db'
 import type {
+  BoxComponentRow,
   ComponentQuery,
   ComponentRow,
   DashboardStats,
@@ -101,6 +103,14 @@ export async function listPackageNames(): Promise<string[]> {
   cacheLife({ revalidate: 30, expire: 60 })
   cacheTag(CACHE_TAG)
   return rawListPackageNames()
+}
+
+/** 盒视图：全量元件（不分页），单独缓存 —— 分页查询的结果不能拿来拼盒子 */
+export async function listBoxComponents(): Promise<BoxComponentRow[]> {
+  'use cache'
+  cacheLife({ revalidate: 30, expire: 60 })
+  cacheTag(CACHE_TAG)
+  return rawListBoxComponents()
 }
 
 export async function valueByCategory(): Promise<Array<{ category: string; value: number }>> {

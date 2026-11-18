@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { listCategoryCounts, listComponents, listPackageNames } from '@/lib/cache'
+import { listBoxComponents, listCategoryCounts, listComponents, listPackageNames } from '@/lib/cache'
 import { groupCategories } from '@/lib/categories'
 import { ComponentListClient } from '@/components/ComponentListClient'
 
@@ -24,7 +24,13 @@ export default async function ComponentsPage({ searchParams }: Props) {
   const statusParam = get('status')
   const status = statusParam === 'deleted' || statusParam === 'all' ? statusParam : 'active'
 
-  const [categoryCounts, packages] = await Promise.all([listCategoryCounts(), listPackageNames()])
+  // 盒视图要按物理盒铺满格位，必须拿全量（分页会让某个盒凭空缺一块）。
+  // 只取渲染格子需要的字段，和分页结果一起并发查，不多一次串行往返。
+  const [categoryCounts, packages, boxItems] = await Promise.all([
+    listCategoryCounts(),
+    listPackageNames(),
+    listBoxComponents(),
+  ])
   const groups = groupCategories(categoryCounts)
 
   // 两级筛选：major=大类（展开成该大类下所有小类），category=小类（立创二级目录原名）
@@ -62,6 +68,7 @@ export default async function ComponentsPage({ searchParams }: Props) {
         initial={data}
         groups={groups}
         packages={packages}
+        boxItems={boxItems}
         state={{
           q: get('q') ?? '',
           major: activeMajor,

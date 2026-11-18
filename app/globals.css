@@ -24,3 +24,62 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ---------------------------------------------------------------------------
+ * 盒视图动画
+ *
+ * 只用 CSS keyframes，不引动画库：需求就是「进场时错开淡入」，用 JS 反而要
+ * 处理卸载、取消、StrictMode 双调用。每个元素的延迟由内联 animation-delay 给。
+ * ------------------------------------------------------------------------- */
+@keyframes box-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes box-cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes box-bar-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.box-pane-in {
+  animation: box-pane-in 0.26s cubic-bezier(0.22, 0.8, 0.32, 1) both;
+}
+
+.box-cell-in {
+  animation: box-cell-in 0.3s cubic-bezier(0.22, 0.8, 0.32, 1) both;
+}
+
+/* 进度条从左往右长出来：用 scaleX 而不是 width，避免每帧触发布局 */
+.box-bar-in {
+  transform-origin: left center;
+  animation: box-bar-in 0.5s cubic-bezier(0.22, 0.8, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box-pane-in,
+  .box-cell-in,
+  .box-bar-in {
+    animation: none;
+  }
+}
