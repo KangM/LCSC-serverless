@@ -124,6 +124,26 @@ export function primarySpec(specifications: Record<string, string> | null | unde
 }
 
 /**
+ * 这一类盒是否「按值排」。
+ *
+ * 电阻盒、电容电感盒的每一格对应一个固定阻值/容值（见 lib/db.ts 的 R1 位号表），
+ * 看值最快；杂件盒、大件盒里装的料各不相同，几乎不靠值来找。
+ */
+export function isValueBox(prefix: string): boolean {
+  return prefix === 'R' || prefix === 'CL'
+}
+
+/**
+ * 格子里的「识别行」——位号下面那行字，回答「这格装的是什么东西」。
+ *
+ * 按值排的盒（R/CL）用规格值，其余盒用品名：杂件的规格值常常是
+ * 「正向压降 3.3V」「间距 2.54mm」这类描述，当标题根本认不出是什么料。
+ */
+export function headlineOf(item: Pick<BoxItem, 'name' | 'value' | 'mpn'>, prefix: string): string {
+  return isValueBox(prefix) ? item.value || item.name || item.mpn : item.name || item.value || item.mpn
+}
+
+/**
  * 把元件列表按盒分组。
  *
  * 同一格被两个元件占用的处理：第一个留下，后面的推进「未归位」并记进 conflicts。

@@ -10,10 +10,14 @@
  *    否则 C0402_0.6mm 这种封装名会把整列撑歪。
  *  - 空位照样渲染：满容量铺满，"哪几格还空着"本身就是要看的。
  *  - 悬停时高亮整行整列（含行头列头），照着数「D 行 4 列」不会数错。
+ *  - 桌面端整块占满一屏（`100dvh - 页面头部`），左栏只按盒数量撑高、不跟着右栏拉长，
+ *    右栏格位超出时自己滚 —— 翻格位时左栏的盒列表始终停在原处。
+ *    减掉的 9rem = main 上下 padding 3rem + 标题行 2.75rem + 视图切换行约 3.25rem；
+ *    改页面头部结构时这个数要跟着改（改大了下面会留白，改小了整页又会出现滚动条）。
  */
 
 import { useMemo, useState } from 'react'
-import { buildBoxLayout, type BoxGroup } from '@/lib/boxes'
+import { buildBoxLayout, headlineOf, type BoxGroup } from '@/lib/boxes'
 import type { BoxComponentRow } from '@/lib/db'
 import { cn } from './ui'
 
@@ -145,9 +149,9 @@ export function BoxView({
   const usedTotal = layout.totalItems - layout.unplaced.length
 
   return (
-    <div className="box-pane-in space-y-3">
+    <div className="box-pane-in flex flex-col gap-3 lg:h-[calc(100dvh-9rem)] lg:min-h-[520px]">
       {/* 总览 */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm">
         <span className="flex items-center gap-1.5">
           <span className="text-lg leading-none font-semibold">{layout.boxes.length}</span>
           <span className="text-xs text-neutral-500">个盒</span>
@@ -174,9 +178,9 @@ export function BoxView({
         </span>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[248px_minmax(0,1fr)]">
-        {/* 左：盒列表 */}
-        <aside className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+        {/* 左：盒列表。只按盒数量撑高，盒多时自己滚，不跟着右栏一起拉长 */}
+        <aside className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-2 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-0 lg:pr-1">
           {layout.boxes.map((box, index) => {
             const accent = accentOf(box.prefix)
             const used = box.cells.size
@@ -270,13 +274,13 @@ export function BoxView({
           )}
         </aside>
 
-        {/* 右：格位 */}
-        <section className="min-w-0 rounded-xl border border-neutral-200 bg-white p-3">
+        {/* 右：格位。标题栏与图例固定，只有中间网格滚动 */}
+        <section className="flex min-h-0 min-w-0 flex-col rounded-xl border border-neutral-200 bg-white p-3">
           {showUnplaced ? (
             <UnplacedPane items={layout.unplaced} keyword={keyword} onPick={onPick} />
           ) : activeBox ? (
             <>
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div className="mb-3 flex shrink-0 flex-wrap items-end justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-semibold text-neutral-900">{activeBox.title}</h2>
@@ -315,41 +319,44 @@ export function BoxView({
               </div>
 
               {/* 网格：首列是行头，行列都用固定尺寸，格子内部再省略 */}
-              <div
-                className="grid gap-1.5"
-                style={{ gridTemplateColumns: `26px repeat(${activeBox.cols.length}, minmax(0, 1fr))` }}
-                onPointerLeave={() => setHover(null)}
-              >
-                <div />
-                {activeBox.cols.map((col) => (
-                  <div
-                    key={`h${col}`}
-                    className={cn(
-                      'pb-0.5 text-center font-mono text-[10px] transition-colors',
-                      hover?.col === col ? 'font-semibold text-blue-600' : 'text-neutral-400',
-                    )}
-                  >
-                    {col}
-                  </div>
-                ))}
+              <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: `26px repeat(${activeBox.cols.length}, minmax(0, 1fr))` }}
+                  onPointerLeave={() => setHover(null)}
+                >
+                  {/* 列头吸顶：右栏滚动时列号不能跟着走，否则看一眼格子不知道是第几列 */}
+                  <div className="sticky top-0 z-10 bg-white" />
+                  {activeBox.cols.map((col) => (
+                    <div
+                      key={`h${col}`}
+                      className={cn(
+                        'sticky top-0 z-10 border-b border-neutral-100 bg-white pt-0.5 pb-1 text-center font-mono text-[10px] transition-colors',
+                        hover?.col === col ? 'font-semibold text-blue-600' : 'text-neutral-400',
+                      )}
+                    >
+                      {col}
+                    </div>
+                  ))}
 
-                {activeBox.rows.map((row, rowIndex) => (
-                  <BoxRow
-                    key={row}
-                    row={row}
-                    rowIndex={rowIndex}
-                    cols={activeBox.cols}
-                    box={activeBox}
-                    hover={hover}
-                    setHover={setHover}
-                    hit={hit}
-                    onPick={onPick}
-                  />
-                ))}
+                  {activeBox.rows.map((row, rowIndex) => (
+                    <BoxRow
+                      key={row}
+                      row={row}
+                      rowIndex={rowIndex}
+                      cols={activeBox.cols}
+                      box={activeBox}
+                      hover={hover}
+                      setHover={setHover}
+                      hit={hit}
+                      onPick={onPick}
+                    />
+                  ))}
+                </div>
               </div>
 
               {/* 图例 */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-neutral-100 pt-2 text-[11px] text-neutral-400">
+              <div className="mt-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-neutral-100 pt-2 text-[11px] text-neutral-400">
                 <span className="flex items-center gap-1">
                   <span className="h-2 w-2 rounded-sm border border-neutral-300 bg-white" />
                   有料（点开详情）
@@ -433,6 +440,10 @@ function BoxRow({
         }
 
         const low = item.threshold > 0 && item.stock <= item.threshold
+        // 悬停提示里把品名、规格、封装都带上：格子里只放得下一行识别字，其余靠悬停补
+        const tip = [item.reference, item.name || item.mpn, item.value, item.packageName, `${item.stock} pcs`]
+          .filter((part) => Boolean(part))
+          .join(' · ')
         return (
           <button
             key={`${row}${col}`}
@@ -440,7 +451,7 @@ function BoxRow({
             onClick={() => onPick(item.partNumber)}
             onPointerEnter={() => setHover({ row, col })}
             onFocus={() => setHover({ row, col })}
-            title={`${item.reference} · ${item.name || item.mpn} · ${item.stock} pcs`}
+            title={tip}
             style={{ animationDelay: `${delay}ms` }}
             className={cn(
               'box-cell-in group relative flex min-h-[68px] flex-col justify-between rounded-lg border px-2 py-1.5 text-left transition duration-150',
@@ -463,9 +474,10 @@ function BoxRow({
               {low && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
             </span>
 
-            {/* 主规格值 */}
+            {/* 识别行：R/CL 盒按值排，看值最快；杂件/大件用品名 —— 它们的「值」
+                常是「正向压降 3.3V」这类描述，当标题认不出是什么料 */}
             <span className="truncate text-[11.5px] leading-none font-semibold text-blue-700">
-              {item.value || item.name || item.mpn || '—'}
+              {headlineOf(item, box.prefix) || '—'}
             </span>
 
             {/* 封装 + 数量：固定在底行，两边都限宽，长封装名省略 */}
@@ -507,7 +519,7 @@ function UnplacedPane({
     return <p className="py-16 text-center text-sm text-neutral-400">所有元件都已经归位 🎉</p>
   }
   return (
-    <div>
+    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
       <div className="mb-3">
         <h2 className="text-base font-semibold text-neutral-900">未归位</h2>
         <p className="mt-0.5 text-xs text-neutral-500">
