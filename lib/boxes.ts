@@ -1,20 +1,22 @@
 /**
  * lib/boxes.ts — 盒视图（按收纳盒看元件）的位号解析与盒结构。
  *
- * 位号格式由 lib/db.ts 的 firstFreeReference 决定：`前缀 + 盒号 + 行字母 + 列数字`，
- * 例如 R1G1 = 电阻盒 1、G 行 1 列，CL2A3 = 电容电感盒 2、A 行 3 列。
+ * 位号格式由 lib/db.ts 的 firstFreeReference 决定：`前缀 + 盒号 + 列字母 + 行数字`。
+ * 坐标按**实物朝向**读：A–H 横着排在顶部（8 列），1–9 竖着往下（9 行），
+ * 例如 R1G4 = 电阻盒 1、G 列、第 4 行；CL2A3 = 电容电感盒 2、A 列、第 3 行。
+ *
  * **这两处的容量规则必须一致**，否则新入库的元件会掉进「未归位」——
  * 改任何一边都要同步另一边。
  *
- * 尺寸：大件盒（B）5 行 × 3 列 = 15 格，其余 8 行 × 9 列 = 72 格。
+ * 尺寸：大件盒（B）3 行 × 5 列 = 15 格，其余 9 行 × 8 列 = 72 格。
  * 展示时永远渲染满容量，不因为用了 16 格就缩成 2 行 —— 空位要留白，
  * 「哪几格还空着」本身就是有用的信息。
  */
 
-const ROWS_STANDARD = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-const ROWS_LARGE = ['A', 'B', 'C', 'D', 'E']
-const COLS_STANDARD = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-const COLS_LARGE = [1, 2, 3]
+const COLUMNS_STANDARD = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+const COLUMNS_LARGE = ['A', 'B', 'C', 'D', 'E']
+const ROWS_STANDARD = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+const ROWS_LARGE = [1, 2, 3]
 
 /** 系统约定的四种收纳盒。未知前缀（如历史数据里的 D1C2）单独归为「其他盒」。 */
 const BOX_META: Record<string, { title: string; order: number }> = {
@@ -28,8 +30,10 @@ export interface BoxRef {
   /** 盒前缀，如 R / CL / M / B；历史数据里也可能是 D 这种 */
   prefix: string
   boxNumber: string
-  row: string
-  col: number
+  /** 横轴：列字母 A–H */
+  column: string
+  /** 纵轴：行号 1–9 */
+  row: number
 }
 
 /** 一个可以摆进格子的元件（字段都是渲染格子要用的，别再往里塞整行数据） */
@@ -54,10 +58,12 @@ export interface BoxGroup {
   title: string
   /** 是否系统约定的四种盒；false 表示历史/异常位号 */
   known: boolean
-  rows: string[]
-  cols: number[]
+  /** 横轴，列字母 A–H（大件盒 A–E） */
+  columns: string[]
+  /** 纵轴，行号 1–9（大件盒 1–3） */
+  rows: number[]
   capacity: number
-  /** 已占用的格子，键是 `${row}${col}`，如 G1 */
+  /** 已占用的格子，键是 `${column}${row}`，如 G4 */
   cells: Map<string, BoxItem>
 }
 
@@ -72,7 +78,8 @@ export interface BoxLayout {
 }
 
 /**
- * 解析位号。宽容处理 `R1-G-1`、小写、全角空格这类手输变体。
+ * 解析位号。宽容处理 `R1-G-4`、小写、全角空格这类手输变体。
+ * 位号里的字母在前、数字在后（`前缀 盒号 列字母 行号`），和实物「A–H 横、1–9 竖」对应。
  * 返回 null 表示「没有可用的盒位」，调用方应放进「未归位」。
  */
 export function parseBoxRef(raw: string | null | undefined): BoxRef | null {
@@ -83,22 +90,23 @@ export function parseBoxRef(raw: string | null | undefined): BoxRef | null {
   if (!canonical) return null
   const matched = /^([A-Z]+)([1-9])([A-H])([1-9])$/.exec(canonical)
   if (!matched) return null
-  return { prefix: matched[1], boxNumber: matched[2], row: matched[3], col: Number(matched[4]) }
+  return { prefix: matched[1], boxNumber: matched[2], column: matched[3], row: Number(matched[4]) }
 }
 
 function createGroup(prefix: string, boxNumber: string): BoxGroup {
   const known = Object.prototype.hasOwnProperty.call(BOX_META, prefix)
-  const rows = prefix === 'B' ? ROWS_LARGE : ROWS_STANDARD
-  const cols = prefix === 'B' ? COLS_LARGE : COLS_STANDARD
+  const large = prefix === 'B'
+  const columns = large ? COLUMNS_LARGE : COLUMNS_STANDARD
+  const rows = large ? ROWS_LARGE : ROWS_STANDARD
   return {
     key: `${prefix}${boxNumber}`,
     prefix,
     boxNumber,
     title: known ? BOX_META[prefix].title : '其他盒',
     known,
+    columns,
     rows,
-    cols,
-    capacity: rows.length * cols.length,
+    capacity: rows.length * columns.length,
     cells: new Map(),
   }
 }
@@ -166,7 +174,7 @@ export function buildBoxLayout(items: BoxItem[]): BoxLayout {
       group = createGroup(ref.prefix, ref.boxNumber)
       groups.set(key, group)
     }
-    const cellKey = `${ref.row}${ref.col}`
+    const cellKey = `${ref.column}${ref.row}`
     if (group.cells.has(cellKey)) {
       if (!conflicts.includes(group.key + cellKey)) conflicts.push(group.key + cellKey)
       unplaced.push(item)

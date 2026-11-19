@@ -9,7 +9,8 @@
  *  - 格子固定高度、固定列宽，封装名超长一律省略号（title 里放全名），
  *    否则 C0402_0.6mm 这种封装名会把整列撑歪。
  *  - 空位照样渲染：满容量铺满，"哪几格还空着"本身就是要看的。
- *  - 悬停时高亮整行整列（含行头列头），照着数「D 行 4 列」不会数错。
+ *  - 网格朝向和实物一致：**A–H 横着排在顶部（列），1–9 竖着往下（行）**，
+ *    所以位号 R1G4 就是「G 列第 4 行」；悬停时高亮整行整列（含行头列头），照着数不会数错。
  *  - 桌面端整块占满一屏（`100dvh - 页面头部`），左栏只按盒数量撑高、不跟着右栏拉长，
  *    右栏格位超出时自己滚 —— 翻格位时左栏的盒列表始终停在原处。
  *    减掉的 9rem = main 上下 padding 3rem + 标题行 2.75rem + 视图切换行约 3.25rem；
@@ -114,7 +115,7 @@ export function BoxView({
   // 默认进第一个盒；数据刷新后若原盒消失（全删了）自动回退
   const [activeKey, setActiveKey] = useState<string>(layout.boxes[0]?.key ?? UNPLACED_KEY)
   const [query, setQuery] = useState('')
-  const [hover, setHover] = useState<{ row: string; col: number } | null>(null)
+  const [hover, setHover] = useState<{ row: number; column: string } | null>(null)
 
   const keyword = query.trim().toLowerCase()
   const hit = useMemo(() => {
@@ -295,7 +296,7 @@ export function BoxView({
                   </div>
                   <p className="mt-0.5 text-xs text-neutral-500">
                     {activeBox.cells.size} / {activeBox.capacity} 格已用 · {activeBox.rows.length} 行 ×{' '}
-                    {activeBox.cols.length} 列
+                    {activeBox.columns.length} 列
                   </p>
                 </div>
                 <label className="relative">
@@ -318,24 +319,24 @@ export function BoxView({
                 </label>
               </div>
 
-              {/* 网格：首列是行头，行列都用固定尺寸，格子内部再省略 */}
+              {/* 网格：和实物同向 —— 顶部 A–H 是横轴，最左 1–9 是纵轴，格子内部再省略 */}
               <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
                 <div
                   className="grid gap-1.5"
-                  style={{ gridTemplateColumns: `26px repeat(${activeBox.cols.length}, minmax(0, 1fr))` }}
+                  style={{ gridTemplateColumns: `26px repeat(${activeBox.columns.length}, minmax(0, 1fr))` }}
                   onPointerLeave={() => setHover(null)}
                 >
                   {/* 列头吸顶：右栏滚动时列号不能跟着走，否则看一眼格子不知道是第几列 */}
                   <div className="sticky top-0 z-10 bg-white" />
-                  {activeBox.cols.map((col) => (
+                  {activeBox.columns.map((column) => (
                     <div
-                      key={`h${col}`}
+                      key={`h${column}`}
                       className={cn(
                         'sticky top-0 z-10 border-b border-neutral-100 bg-white pt-0.5 pb-1 text-center font-mono text-[10px] transition-colors',
-                        hover?.col === col ? 'font-semibold text-blue-600' : 'text-neutral-400',
+                        hover?.column === column ? 'font-semibold text-blue-600' : 'text-neutral-400',
                       )}
                     >
-                      {col}
+                      {column}
                     </div>
                   ))}
 
@@ -344,7 +345,7 @@ export function BoxView({
                       key={row}
                       row={row}
                       rowIndex={rowIndex}
-                      cols={activeBox.cols}
+                      columns={activeBox.columns}
                       box={activeBox}
                       hover={hover}
                       setHover={setHover}
@@ -384,19 +385,21 @@ export function BoxView({
 function BoxRow({
   row,
   rowIndex,
-  cols,
+  columns,
   box,
   hover,
   setHover,
   hit,
   onPick,
 }: {
-  row: string
+  /** 行号 1–9，纵轴 */
+  row: number
   rowIndex: number
-  cols: number[]
+  /** 列字母 A–H，横轴 */
+  columns: string[]
   box: BoxGroup
-  hover: { row: string; col: number } | null
-  setHover: (value: { row: string; col: number } | null) => void
+  hover: { row: number; column: string } | null
+  setHover: (value: { row: number; column: string } | null) => void
   hit: ((item: BoxComponentRow | undefined) => boolean) | null
   onPick: (partNumber: string) => void
 }) {
@@ -412,22 +415,22 @@ function BoxRow({
       >
         {row}
       </div>
-      {cols.map((col, colIndex) => {
-        const item = box.cells.get(`${row}${col}`)
+      {columns.map((column, colIndex) => {
+        const item = box.cells.get(`${column}${row}`)
         const matched = hit ? hit(item) : true
         const dimmed = Boolean(hit) && Boolean(item) && !matched
         const highlighted = Boolean(hit) && Boolean(item) && matched
         // 悬停时整行整列都带上淡蓝底，包括有料的格子 —— 只让空格变色时，
         // 行/列看起来是断开的，反而不容易顺着数过去
-        const inLine = hover ? hover.row === row || hover.col === col : false
-        const isSelf = hover ? hover.row === row && hover.col === col : false
+        const inLine = hover ? hover.row === row || hover.column === column : false
+        const isSelf = hover ? hover.row === row && hover.column === column : false
         // 交错进场：按「行优先」的顺序铺开，视觉上像从左上角扫下来
-        const delay = Math.min((rowIndex * cols.length + colIndex) * 3, 260)
+        const delay = Math.min((rowIndex * columns.length + colIndex) * 3, 260)
 
         if (!item) {
           return (
             <div
-              key={`${row}${col}`}
+              key={`${column}${row}`}
               className={cn(
                 'box-cell-in flex min-h-[68px] items-center justify-center rounded-lg border border-dashed transition-colors',
                 inLine ? 'border-blue-300 bg-blue-50/60' : 'border-neutral-300 bg-neutral-50',
@@ -446,11 +449,11 @@ function BoxRow({
           .join(' · ')
         return (
           <button
-            key={`${row}${col}`}
+            key={`${column}${row}`}
             type="button"
             onClick={() => onPick(item.partNumber)}
-            onPointerEnter={() => setHover({ row, col })}
-            onFocus={() => setHover({ row, col })}
+            onPointerEnter={() => setHover({ row, column })}
+            onFocus={() => setHover({ row, column })}
             title={tip}
             style={{ animationDelay: `${delay}ms` }}
             className={cn(

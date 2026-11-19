@@ -267,13 +267,15 @@ function normalizeResistance(value: string | undefined): string | null {
 }
 
 function firstFreeReference(prefix: ReferencePrefix, used: Set<string>, startBox = 1): string | null {
-  const rows = prefix === 'B' ? 'ABCDE' : 'ABCDEFGH'
-  const maxColumn = prefix === 'B' ? 3 : 9
+  // 实物朝向：A–H 横排成列、1–9 竖排成行。补位顺序是「一列填满再下一列」，
+  // 与 R1 的阻值位号表（按值分列、每列 9 格）保持一致。
+  const columns = prefix === 'B' ? 'ABCDE' : 'ABCDEFGH'
+  const maxRow = prefix === 'B' ? 3 : 9
 
   for (let box = startBox; box <= 9; box++) {
-    for (const row of rows) {
-      for (let column = 1; column <= maxColumn; column++) {
-        const candidate = `${prefix}${box}${row}${column}`
+    for (const column of columns) {
+      for (let row = 1; row <= maxRow; row++) {
+        const candidate = `${prefix}${box}${column}${row}`
         if (!used.has(candidate)) return candidate
       }
     }
@@ -282,7 +284,7 @@ function firstFreeReference(prefix: ReferencePrefix, used: Set<string>, startBox
 }
 
 /**
- * 推荐一个空闲位号：R1A1 / CL1A1 / M1A1。
+ * 推荐一个空闲位号：R1A1（电阻盒 1、A 列第 1 行）/ CL1A1 / M1A1。
  * 已入库元件优先复用其原位号；同时兼容旧的 R1-A-1 写法，避免误判为空位。
  */
 export async function suggestReferenceDesignator(
