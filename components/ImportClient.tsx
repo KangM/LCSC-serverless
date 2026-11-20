@@ -30,7 +30,11 @@ interface BomCheckItem extends BomRow {
   matchedValue: string | null
   referenceDesignator: string | null
   stockQuantity: number
-  status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
+  /** 已发货未签收的采购订单里，该元件尚未核销的数量 */
+  incomingQuantity: number
+  /** 库存 + 在途 */
+  availableQuantity: number
+  status: 'sufficient' | 'covered_by_incoming' | 'insufficient' | 'missing' | 'invalid'
   message: string
 }
 
@@ -51,6 +55,7 @@ interface BomSelectionEntry {
   value: string | null
   quantity: number
   stockQuantity: number
+  incomingQuantity: number
   designators: string[]
 }
 
@@ -131,6 +136,15 @@ function parseBomCsv(text: string): BomRow[] {
     supplier: col.supplier >= 0 ? (cells[col.supplier] ?? '').trim() : '',
     quantity: Math.trunc(Number(col.quantity >= 0 ? cells[col.quantity] : 0)),
   }))
+}
+
+/** BOM 核对结论的配色：够用 / 靠在途补 / 真缺 / 没匹配上 */
+const BOM_STATUS_CLASS: Record<BomCheckItem['status'], string> = {
+  sufficient: 'text-green-600',
+  covered_by_incoming: 'text-blue-600',
+  insufficient: 'text-amber-600',
+  missing: 'text-red-600',
+  invalid: 'text-red-600',
 }
 
 export function ImportClient() {
@@ -262,6 +276,7 @@ export function ImportClient() {
         value: item.matchedValue,
         quantity: 0,
         stockQuantity: item.stockQuantity,
+        incomingQuantity: item.incomingQuantity,
         designators: [],
       }
       entry.quantity += item.quantity
@@ -485,6 +500,7 @@ export function ImportClient() {
                     <th className="px-2 py-2">匹配元件</th>
                     <th className="px-2 py-2 text-right">需求</th>
                     <th className="px-2 py-2 text-right">库存</th>
+                    <th className="px-2 py-2 text-right">在途</th>
                     <th className="px-2 py-2">结果</th>
                   </tr>
                 </thead>
@@ -524,7 +540,14 @@ export function ImportClient() {
                       </td>
                       <td className="px-2 py-1.5 text-right">{item.quantity || '-'}</td>
                       <td className="px-2 py-1.5 text-right">{item.stockQuantity}</td>
-                      <td className={cn('px-2 py-1.5', item.status === 'sufficient' ? 'text-green-600' : item.status === 'insufficient' ? 'text-amber-600' : 'text-red-600')}>{item.message}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {item.incomingQuantity > 0 ? (
+                          <span className="text-blue-600">+{item.incomingQuantity}</span>
+                        ) : (
+                          <span className="text-neutral-300">0</span>
+                        )}
+                      </td>
+                      <td className={cn('px-2 py-1.5', BOM_STATUS_CLASS[item.status])}>{item.message}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -562,6 +585,9 @@ export function ImportClient() {
                       {entry.partNumber}
                       {entry.value ? ` · ${entry.value}` : ''}
                       {entry.name ? ` · ${entry.name}` : ''}：需求 {entry.quantity} / 库存 {entry.stockQuantity}
+                      {entry.incomingQuantity > 0 && (
+                        <span className="text-blue-600"> / 在途 {entry.incomingQuantity}</span>
+                      )}
                       {entry.designators.length > 0 && (
                         ` · 位号 ${entry.designators.slice(0, 12).join(',')}${entry.designators.length > 12 ? ` 等 ${entry.designators.length} 个` : ''}`
                       )}
@@ -571,6 +597,11 @@ export function ImportClient() {
                 {bomShortage.length > 0 && !bomOversell && (
                   <p className="mt-1 text-amber-600">
                     {bomShortage.length} 项库存不足，直接出库会被整批拒绝；可勾选「库存不足时扣至 0」。
+                    {bomSelection.some((entry) => entry.stockQuantity + entry.incomingQuantity >= entry.quantity) && (
+                      <span className="text-blue-600">
+                        {' '}其中有的总量靠在途订单能补上，等货到了在「采购订单」页核销入库即可。
+                      </span>
+                    )}
                   </p>
                 )}
               </div>

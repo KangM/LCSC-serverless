@@ -18,7 +18,8 @@
     "smoke:bom-consume": "node scripts/smoke-bom-consume.mjs",
     "verify:backup-status": "node scripts/verify-backup-status.mjs",
     "verify:bom-items": "node scripts/verify-bom-items.mjs",
-    "deploy:check": "node scripts/deploy-check.mjs"
+    "deploy:check": "node scripts/deploy-check.mjs",
+    "verify:purchase-orders": "node --conditions=react-server scripts/verify-purchase-orders.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

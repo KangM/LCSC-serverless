@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/', label: '仪表盘', icon: '📊' },
   { href: '/components', label: '元件列表', icon: '🔌' },
   { href: '/transactions', label: '流水记录', icon: '🧾' },
+  { href: '/orders', label: '采购订单', icon: '🛒' },
   { href: '/reports', label: '统计报表', icon: '📈' },
   { href: '/import', label: '导入导出', icon: '📥' },
   { href: '/settings', label: '设置', icon: '⚙️' },

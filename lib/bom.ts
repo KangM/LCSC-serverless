@@ -1,5 +1,6 @@
 import 'server-only'
 import { getDb, type ComponentRow } from './db'
+import { getIncomingByPartNumber } from './purchase-orders'
 import { compatibleCandidates, matchesFootprint, matchesName } from './part-match.mjs'
 
 export interface BomRow {
@@ -17,7 +18,11 @@ export interface BomCheckItem extends BomRow {
   matchedValue: string | null
   referenceDesignator: string | null
   stockQuantity: number
-  status: 'sufficient' | 'insufficient' | 'missing' | 'invalid'
+  /** 在途量：已发货未签收的采购订单里该元件尚未核销的件数 */
+  incomingQuantity: number
+  /** 可用量 = 库存 + 在途 */
+  availableQuantity: number
+  status: 'sufficient' | 'covered_by_incoming' | 'insufficient' | 'missing' | 'invalid'
   message: string
 }
 
@@ -35,16 +40,20 @@ function primaryValue(row: ComponentRow): string | null {
 /** 将 BOM 每一行与当前正常库存匹配，并按需求数量判断库存是否足够。 */
 export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[] }> {
   const rows = Array.isArray(rawRows) ? rawRows as Array<Record<string, unknown>> : []
-  const result = await getDb().execute(`
-    SELECT components.*, (
-      SELECT reference_designator FROM transactions
-      WHERE transactions.part_number = components.part_number
-        AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
-      ORDER BY transactions.id DESC LIMIT 1
-    ) AS reference_designator
-    FROM components
-    WHERE status = 'active'
-  `)
+  // 库存与在途并行取：在途量来自采购订单（已发货未签收、且未核销的部分）
+  const [result, incomingByPart] = await Promise.all([
+    getDb().execute(`
+      SELECT components.*, (
+        SELECT reference_designator FROM transactions
+        WHERE transactions.part_number = components.part_number
+          AND reference_designator IS NOT NULL AND trim(reference_designator) <> ''
+        ORDER BY transactions.id DESC LIMIT 1
+      ) AS reference_designator
+      FROM components
+      WHERE status = 'active'
+    `),
+    getIncomingByPartNumber(),
+  ])
   const components = result.rows.map((row) => {
     const values = row as Record<string, unknown>
     return {
@@ -73,7 +82,7 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
       const footprint = String(raw.footprint ?? '').trim()
       const quantity = Math.trunc(Number(raw.quantity ?? 0))
       if (!designator || !name || quantity < 1) {
-        return { designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity, matchedPartNumber: null, matchedName: null, matchedValue: null, referenceDesignator: null, stockQuantity: 0, status: 'invalid', message: '缺少名称/位号或数量无效' }
+        return { designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity, matchedPartNumber: null, matchedName: null, matchedValue: null, referenceDesignator: null, stockQuantity: 0, incomingQuantity: 0, availableQuantity: 0, status: 'invalid', message: '缺少名称/位号或数量无效' }
       }
       // 品类先对齐（位号 U2 不配电阻），否则「封装未完全匹配」的候选会离谱到没意义
       const candidates: ComponentRow[] = compatibleCandidates(
@@ -85,14 +94,34 @@ export async function checkBom(rawRows: unknown): Promise<{ items: BomCheckItem[
       const matched = footprintMatches[0] ?? candidates[0] ?? null
       const footprintMatched = footprintMatches.length > 0
       const stockQuantity = matched?.stockQuantity ?? 0
-      const status = !matched ? 'missing' : stockQuantity >= quantity ? 'sufficient' : 'insufficient'
+      const incomingQuantity = matched ? (incomingByPart.get(matched.partNumber.toUpperCase()) ?? 0) : 0
+      const availableQuantity = stockQuantity + incomingQuantity
+
+      // 三档结论：库存够 → 够；库存不够但在途能补上 → 在途覆盖；两者加起来还差 → 真的缺
+      const status: BomCheckItem['status'] = !matched
+        ? 'missing'
+        : stockQuantity >= quantity
+          ? 'sufficient'
+          : availableQuantity >= quantity
+            ? 'covered_by_incoming'
+            : 'insufficient'
+
       const suffix = footprintMatched ? '' : '（封装未完全匹配）'
+      const incomingNote = incomingQuantity > 0 ? `，在途 ${incomingQuantity}` : ''
+      const message = !matched
+        ? '未找到匹配元件'
+        : status === 'sufficient'
+          ? `库存足够${suffix}`
+          : status === 'covered_by_incoming'
+            ? `库存 ${stockQuantity}${incomingNote}，合计 ${availableQuantity} 够用${suffix}`
+            : `库存 ${stockQuantity}${incomingNote}，还缺 ${quantity - availableQuantity}${suffix}`
+
       return {
         designator, name, footprint, supplier: String(raw.supplier ?? '').trim(), quantity,
         matchedPartNumber: matched?.partNumber ?? null, matchedName: matched?.name ?? null,
         matchedValue: matched ? primaryValue(matched) : null,
-        referenceDesignator: matched?.referenceDesignator ?? null, stockQuantity, status,
-        message: !matched ? '未找到匹配元件' : status === 'sufficient' ? `库存足够${suffix}` : `库存不足${suffix}`,
+        referenceDesignator: matched?.referenceDesignator ?? null,
+        stockQuantity, incomingQuantity, availableQuantity, status, message,
       }
     }),
   }
