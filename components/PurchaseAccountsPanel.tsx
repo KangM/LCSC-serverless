@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Badge, Button, Card, Input, Label, Modal, Select, cn } from './ui'
-import type { AccountSource, PurchaseAccount } from '@/lib/purchase-types'
+import type { AccountSource, PurchaseAccount, SyncAccountResult } from '@/lib/purchase-types'
 
 const SOURCE_LABEL: Record<AccountSource, string> = {
   lcsc: '立创商城',
@@ -39,6 +39,9 @@ export function PurchaseAccountsPanel({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  /** 正在同步的账号 id；'all' 表示全部同步中 */
+  const [syncing, setSyncing] = useState<number | 'all' | null>(null)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
     source: 'lcsc' as AccountSource,
@@ -71,6 +74,43 @@ export function PurchaseAccountsPanel({
     }
   }
 
+  /** 触发平台同步：不传 id 就同步全部启用中的账号 */
+  async function sync(accountId?: number) {
+    setSyncing(accountId ?? 'all')
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch('/api/orders/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountId ? { accountId } : {}),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.ok) throw new Error(data?.error || `同步失败（HTTP ${res.status}）`)
+
+      const results = (data.results ?? []) as SyncAccountResult[]
+      if (!results.length) {
+        setNotice('没有启用中的账号可同步')
+        return
+      }
+
+      const failed = results.filter((item) => item.status !== 'ok')
+      setNotice(results.map((item) => `${item.label}：${item.message}`).join('　|　'))
+      if (failed.length) {
+        setError(
+          failed.some((item) => item.status === 'cookie_expired')
+            ? '有账号 Cookie 已失效，重新复制粘贴后即可继续同步'
+            : failed.map((item) => `${item.label}：${item.message}`).join('；'),
+        )
+      }
+      await onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '同步失败')
+    } finally {
+      setSyncing(null)
+    }
+  }
+
   async function submitCreate() {
     const ok = await call('POST', {
       source: form.source,
@@ -88,9 +128,19 @@ export function PurchaseAccountsPanel({
     <Card>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-neutral-500">采购账号（多账户 Cookie）</h2>
-        <Button variant="secondary" size="sm" onClick={() => setCreating((v) => !v)}>
-          {creating ? '收起' : '新增账号'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={syncing !== null || accounts.length === 0}
+            onClick={() => sync()}
+          >
+            {syncing === 'all' ? '同步中…' : '同步全部'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setCreating((v) => !v)}>
+            {creating ? '收起' : '新增账号'}
+          </Button>
+        </div>
       </div>
 
       <p className="mb-3 text-xs text-neutral-400">
@@ -144,6 +194,7 @@ export function PurchaseAccountsPanel({
         </div>
       )}
 
+      {notice && <p className="mb-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">{notice}</p>}
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
 
       {accounts.length === 0 ? (
@@ -175,6 +226,15 @@ export function PurchaseAccountsPanel({
                   <td className="px-2 py-1.5">{syncBadge(account)}</td>
                   <td className="px-2 py-1.5 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="font-medium text-blue-600 hover:bg-blue-50"
+                        disabled={syncing !== null || !account.cookieSet || !account.enabled}
+                        onClick={() => sync(account.id)}
+                      >
+                        {syncing === account.id ? '同步中…' : '同步'}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

@@ -19,7 +19,8 @@
     "verify:backup-status": "node scripts/verify-backup-status.mjs",
     "verify:bom-items": "node scripts/verify-bom-items.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
-    "verify:purchase-orders": "node --conditions=react-server scripts/verify-purchase-orders.mjs"
+    "verify:purchase-orders": "node --conditions=react-server scripts/verify-purchase-orders.mjs",
+    "verify:order-sync": "node --conditions=react-server scripts/verify-order-sync.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

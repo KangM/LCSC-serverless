@@ -41,12 +41,18 @@ BOM 核对原来只看库存，会把「已经买了、还在路上」的料误�
 | 期 | 内容 | 状态 |
 |---|---|---|
 | 一期 | 建表、在途参与判断、手工录入、到货核销、多账户 Cookie 管理 | 已完成 |
-| 二期 | 立创订单抓取（复用 `js-port/lcsc-catalog.js` 的验证 Cookie 方案，按账号定时同步） | 待做 |
-| 三期 | 淘宝订单抓取 + OCR 兜底 | 待做 |
+| 二期 | 立创订单抓取（会员站 `order-api`，按账号同步，C 编号自动匹配） | 已完成 |
+| 三期 | 淘宝订单抓取（mtop + 自算 sign） | 已实现，待有效 Cookie 校准 |
 
-两家的官方接口对个人账号都不可用：立创开放平台（open.jlc.com）的元器件&MRO 只对「有稳定采购规模的企业客编」试开放，LCSC 国际站 Agent API 只查「通过 API 下的单」；淘宝 `taobao.trades.bought.get` 要企业实名 + 场景核验 + OAuth 才有权限。所以二/三期走抓取，并且必须保留手工录入作为兜底。
+**立创**：官方开放平台（open.jlc.com）的元器件&MRO 只对「有稳定采购规模的企业客编」试开放，LCSC 国际站 Agent API 只查「通过 API 下的单」，所以走会员站的订单接口 `order-api.szlcsc.com/member/order/list`。这个接口只需要登录 Cookie，没有滑块也没有签名；未登录返回 **HTTP 200 + `{"needLogin":true}`**（不是 401），据此判定 Cookie 失效。
 
-验证：`npm run verify:purchase-orders`（临时库跑在途判断与核销，24 项断言）。
+**立创没有「已签收」状态**——实测 8 月的订单至今仍是「已发货」，`realArriveTime` 始终为空，`isArrive` 只表示「预计到货日已过」。所以只有 `realArriveTime` 有值才认签收，否则一直算在途，直到你在 `/orders` 页核销。
+
+**淘宝**：走 `h5api.m.taobao.com/h5/mtop.taobao.order.queryboughtlistv2`，每次请求都要带 `sign = md5(token & t & appKey & data)`，token 取自 Cookie 里的 `_m_h5_tk`（同名 Cookie 有多份时最后一份生效）。这条链路有两个硬伤：Cookie 会被轮换；命中风控时返回带 `_tmd_` 的滑块挑战，**这时候换什么 Cookie 都无效**。所以它不能当唯一来源，手工录入始终保留。
+
+同步有三个入口：`/orders` 页账号行的「同步」按钮、`POST /api/orders/sync`、每天 02:30 的定时任务 `/api/cron/sync-orders`（在主容器 cron profile 里，先刷元件价格再拉订单）。
+
+验证：`npm run verify:purchase-orders`（在途判断与核销）、`npm run verify:order-sync`（两家的响应解析、Cookie 失效判定、同步幂等、已签收状态不被平台回退）。
 
 ## 辅助焊接 HTML 注入库存位置
 

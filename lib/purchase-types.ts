@@ -114,3 +114,27 @@ export interface ConsumeEntry {
   referenceDesignator?: string | null
   note?: string | null
 }
+
+/** 同步回来的单笔订单摘要（用于界面回显「拉了哪几单」） */
+export interface SyncedOrderBrief {
+  orderNo: string
+  shipmentState: ShipmentState
+  itemCount: number
+  quantity: number
+}
+
+/** 单个账号的同步结果 */
+export interface SyncAccountResult {
+  accountId: number
+  source: AccountSource
+  label: string
+  status: SyncStatus
+  message: string
+  /** 平台侧拉到几单 */
+  fetched: number
+  /** 实际写入/更新几单 */
+  imported: number
+  /** 自动匹配上的订单行数 */
+  matchedItems: number
+  orders: SyncedOrderBrief[]
+}

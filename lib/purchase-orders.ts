@@ -133,6 +133,24 @@ export async function listEnabledAccountCookies(): Promise<Array<{ id: number; s
   }))
 }
 
+/** 同步任务用：取单个账号的 Cookie 原文 */
+export async function getAccountWithCookie(
+  id: number,
+): Promise<{ id: number; source: AccountSource; label: string; cookie: string } | null> {
+  const result = await getDb().execute({
+    sql: 'SELECT id, source, label, cookie FROM purchase_accounts WHERE id = ?',
+    args: [id],
+  })
+  if (!result.rows.length) return null
+  const row = result.rows[0]
+  return {
+    id: Number(row.id),
+    source: row.source as AccountSource,
+    label: String(row.label ?? ''),
+    cookie: String(row.cookie ?? ''),
+  }
+}
+
 export async function createAccount(input: {
   source: AccountSource
   label: string
@@ -499,10 +517,16 @@ export async function upsertOrder(input: PurchaseOrderInput): Promise<number> {
 
   if (existing.rows.length) {
     await client.execute({
+      // 状态只往前走：平台长期把订单挂在「已发货」，一旦本地已核销成 received（或已取消），
+      // 同步不能把它推回 shipped，否则列表里会重新出现「运输中」的幽灵订单。
       sql: `UPDATE purchase_orders SET
               account_id = COALESCE(?, account_id),
               status_text = COALESCE(?, status_text),
-              shipment_state = ?,
+              shipment_state = CASE
+                WHEN shipment_state IN ('received', 'cancelled') AND ? NOT IN ('received', 'cancelled')
+                  THEN shipment_state
+                ELSE ?
+              END,
               ordered_at = COALESCE(?, ordered_at),
               shipped_at = COALESCE(?, shipped_at),
               received_at = COALESCE(?, received_at),
@@ -514,6 +538,7 @@ export async function upsertOrder(input: PurchaseOrderInput): Promise<number> {
       args: [
         input.accountId ?? null,
         input.statusText ?? null,
+        shipmentState,
         shipmentState,
         input.orderedAt ?? null,
         input.shippedAt ?? null,
@@ -619,18 +644,21 @@ export async function upsertOrder(input: PurchaseOrderInput): Promise<number> {
   return orderId
 }
 
-/** 手工录入订单：先建单，再逐行尝试自动匹配 */
-export async function createManualOrder(input: PurchaseOrderInput): Promise<number> {
-  const orderId = await upsertOrder(input)
-
+/**
+ * 给订单里还没绑定元件的行做一次自动匹配（C 编号 → 型号 → 标题别名）。
+ * 手工录单和平台同步共用，避免两处逻辑跑偏。
+ */
+export async function autoMatchOrderItems(orderId: number, source: PurchaseSource): Promise<number> {
   const rows = await getDb().execute({
-    sql: `SELECT id, supplier_part_no, mpn, title, matched_part_number FROM purchase_order_items
+    sql: `SELECT id, supplier_part_no, mpn, title FROM purchase_order_items
           WHERE order_id = ? AND (matched_part_number IS NULL OR matched_part_number = '')`,
     args: [orderId],
   })
+
+  let matched = 0
   for (const row of rows.rows) {
     const hit = await matchOrderItem({
-      source: input.source,
+      source,
       supplierPartNo: (row.supplier_part_no as string) ?? null,
       mpn: (row.mpn as string) ?? null,
       title: String(row.title ?? ''),
@@ -640,7 +668,15 @@ export async function createManualOrder(input: PurchaseOrderInput): Promise<numb
       sql: 'UPDATE purchase_order_items SET matched_part_number = ?, match_source = ?, updated_at = ? WHERE id = ?',
       args: [hit.partNumber, hit.source, new Date().toISOString(), Number(row.id)],
     })
+    matched += 1
   }
+  return matched
+}
+
+/** 手工录入订单：先建单，再逐行尝试自动匹配 */
+export async function createManualOrder(input: PurchaseOrderInput): Promise<number> {
+  const orderId = await upsertOrder(input)
+  await autoMatchOrderItems(orderId, input.source)
   return orderId
 }
 
