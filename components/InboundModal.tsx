@@ -333,11 +333,10 @@ export function InboundModal({
           void lookup(pn)
         }}
       />
-      <QrScanModal
-        open={qrOpen}
-        onClose={() => setQrOpen(false)}
-        onDecoded={handleQrDecoded}
-      />
+      {/* 只在打开时挂载：每次打开都是干净实例，也避免 SSR 阶段探测摄像头环境 */}
+      {qrOpen && (
+        <QrScanModal open onClose={() => setQrOpen(false)} onDecoded={handleQrDecoded} />
+      )}
       <OcrModal
         open={ocrOpen}
         onClose={() => setOcrOpen(false)}
