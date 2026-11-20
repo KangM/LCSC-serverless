@@ -66,4 +66,9 @@ echo "[$(date --iso-8601=seconds)] building ${GIT_COMMIT_SHA:0:12}"
   --build-arg "GIT_COMMIT_TIME=$GIT_COMMIT_TIME" \
   ${NPM_REGISTRY:+--build-arg NPM_REGISTRY="$NPM_REGISTRY"} .
 "$DOCKER_BIN" compose up -d --no-build
+# cron 容器和 app 共用镜像，但它在 profile 里，不带 profile 的 up 不会重建它，
+# 结果 app 更新了、定时任务还在跑旧代码。只在 cron 本来就在跑时才重建，不主动拉起。
+if [ -n "$("$DOCKER_BIN" ps -q --filter 'label=com.docker.compose.service=cron')" ]; then
+  "$DOCKER_BIN" compose --profile cron up -d --no-build
+fi
 echo "[$(date --iso-8601=seconds)] deployment complete"
