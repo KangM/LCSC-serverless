@@ -69,9 +69,9 @@ export function AppShell({ children, buildInfo }: { children: React.ReactNode; b
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50 md:flex-row">
+    <div className="flex h-dvh flex-col overflow-hidden bg-neutral-50 md:flex-row">
       {/* 移动端顶部栏 */}
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
+      <header className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
         <div>
           <div className="text-base font-bold">元件库存管理</div>
           <div className="text-xs text-neutral-400">LCSC Inventory</div>
@@ -116,7 +116,7 @@ export function AppShell({ children, buildInfo }: { children: React.ReactNode; b
           <div className="text-base font-bold">元件库存管理</div>
           <div className="text-xs text-neutral-400">LCSC Inventory</div>
         </div>
-        <nav className="flex-1 space-y-0.5 p-2">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
           <NavLinks />
         </nav>
         <div className="border-t border-neutral-200 p-2">
@@ -125,7 +125,7 @@ export function AppShell({ children, buildInfo }: { children: React.ReactNode; b
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
     </div>
   )
 }
